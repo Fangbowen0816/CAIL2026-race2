@@ -1,0 +1,10 @@
+[project]
+name = "cail-race2"
+version = "0.0.1"
+description = "CAIL 2026 赛道三 · 智能合同审查 · 最小框架"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.28"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
