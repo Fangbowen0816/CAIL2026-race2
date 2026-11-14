@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .facts import Fact
-from .verify import Conflict
+from .verify import Conflict, find_slot_gap_candidates
 
 
 def build_hints(paragraphs: dict[int, str], facts: list[Fact],
@@ -32,6 +32,12 @@ def build_hints(paragraphs: dict[int, str], facts: list[Fact],
         lines.append("疑似问题（重点核对，勿盲从）：")
         for c in conflicts[:20]:
             lines.append(f"- [{c.kind}] p{c.pids}: {c.detail}")
+
+    gaps = find_slot_gap_candidates(paragraphs, facts)
+    if gaps:
+        lines.append("疑似要素缺失（交付/付款类条款段内未见时间，重点核对）：")
+        for c in gaps[:10]:
+            lines.append(f"- p{c.pids}: {c.detail}")
 
     if not lines:
         return ""

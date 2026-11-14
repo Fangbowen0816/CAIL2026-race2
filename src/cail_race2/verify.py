@@ -96,6 +96,27 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
     return out
 
 
+_SLOT_TRIGGERS = ("交付", "交货", "付款", "支付", "验收", "结算", "完成")
+
+
+def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict]:
+    """交付/付款类条款但段内无时间信息 → 疑似要素缺失（仅作提示，不强制判定）。"""
+    by_pid: dict = defaultdict(list)
+    for f in facts:
+        by_pid[f.pid].append(f)
+    out: list[Conflict] = []
+    for pid in sorted(paragraphs):
+        text = paragraphs[pid]
+        if not any(t in text for t in _SLOT_TRIGGERS):
+            continue
+        if any(f.kind in ("date", "duration") for f in by_pid.get(pid, [])):
+            continue
+        if any(m in text for m in _STRONG_MISSING):
+            continue
+        out.append(Conflict("missing_gap", [pid], "交付/付款类条款段内未见时间"))
+    return out
+
+
 def verify(paragraphs: dict[int, str], facts: list[Fact] | None = None) -> list[Conflict]:
     facts = facts if facts is not None else extract_facts(paragraphs)
     out = (find_conflicts(facts) + check_arithmetic(facts, paragraphs)

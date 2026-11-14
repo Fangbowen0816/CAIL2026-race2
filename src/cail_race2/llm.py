@@ -116,8 +116,41 @@ class LLMClient:
                 continue
             if r.status_code >= 400:
                 raise LLMError(f"HTTP {r.status_code}: {r.text[:300]}")
-            return r.json()["choices"][0]["message"]["content"]
+            content = r.json()["choices"][0]["message"].get("content")
+            if not content:
+                last = LLMError("空响应（可重试）")
+                time.sleep(2 ** attempt)
+                continue
+            return content
         raise last or LLMError("请求失败")
 
     def complete_json(self, messages, **kwargs):
         return extract_json(self.chat(messages, **kwargs))
+
+    def chat_message(self, messages, tools=None, tool_choice="auto",
+                     temperature=None, max_retries=3) -> dict:
+        """返回完整 assistant message（可能含 tool_calls），供 Agent 循环使用。"""
+        url = self.base_url + "/chat/completions"
+        payload = {"model": self.model, "messages": messages, "seed": self.seed}
+        if temperature is not None:
+            payload["temperature"] = temperature
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = tool_choice
+        last = None
+        for attempt in range(max_retries):
+            try:
+                r = self.session.post(url, json=payload, headers=self._headers(),
+                                      timeout=self.timeout)
+            except requests.RequestException as e:
+                last = LLMError(f"网络错误: {type(e).__name__}")
+                time.sleep(2 ** attempt)
+                continue
+            if r.status_code in (429, 500, 502, 503, 504):
+                last = LLMError(f"HTTP {r.status_code}（可重试）")
+                time.sleep(2 ** attempt)
+                continue
+            if r.status_code >= 400:
+                raise LLMError(f"HTTP {r.status_code}: {r.text[:300]}")
+            return r.json()["choices"][0]["message"]
+        raise last or LLMError("请求失败")

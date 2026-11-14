@@ -60,12 +60,17 @@ class Fact:
     pid: int
     slot: str = ""
     number: float | None = None
+    start: int = -1          # 数值在段内的字符起止（用于确定性重写）
+    end: int = -1
 
     def group_key(self):
         return (self.kind, self.slot)
 
 
 def _infer_slot(text: str, pos: int, window: int = 24) -> str:
+    # 派生金额（「即 1100 元」「50%，即…」）不应归给总价/单价槽位
+    if any(ch in text[max(0, pos - 4):pos] for ch in ("即", "%")):
+        return ""
     seg = text[max(0, pos - window):pos]
     best, best_idx = "", -1
     for kw, slot in _SLOT_MAP:
@@ -83,11 +88,11 @@ def extract_facts(paragraphs: dict[int, str]) -> list[Fact]:
     facts: list[Fact] = []
     seen: set = set()
 
-    def add(kind, value, pid, slot="", number=None):
+    def add(kind, value, pid, slot="", number=None, start=-1, end=-1):
         key = (kind, value, pid, slot)
         if key not in seen:
             seen.add(key)
-            facts.append(Fact(kind, value, pid, slot, number))
+            facts.append(Fact(kind, value, pid, slot, number, start, end))
 
     for pid in sorted(paragraphs):
         text = paragraphs[pid]
@@ -107,7 +112,7 @@ def extract_facts(paragraphs: dict[int, str]) -> list[Fact]:
         for m in MONEY_RE.finditer(text):
             unit = m.group("unit")
             add("money", _num(m.group("num")), pid, _infer_slot(text, m.start()),
-                _num(m.group("num")) * _MONEY_MUL[unit])
+                _num(m.group("num")) * _MONEY_MUL[unit], m.start("num"), m.end("num"))
 
         for m in QTY_RE.finditer(text):
             add("quantity", m.group("num") + m.group("unit"), pid,
