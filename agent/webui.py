@@ -31,6 +31,9 @@ o.textContent=JSON.stringify(await r.json(),null,2);};
 def serve(port: int = 8800, model=None):
     from flask import Flask, jsonify, request
 
+    from cail_race2.env import load_dotenv
+    load_dotenv(os.path.join(ROOT, ".env"))
+
     from agent.mcp_client import MCPClient, default_command
     from agent.review import review_contract
     from cail_race2.contracts import Contract, parse_paragraphs
