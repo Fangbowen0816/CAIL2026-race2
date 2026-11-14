@@ -39,20 +39,26 @@ description: 通过 MCP 连接器发现评测服务工具，按服务要求的�
 ### 4. 调用并解析
 ```
 调用：score_review(contract_id, context, localization, revision)
-返回（JSON 文本）：
+返回（JSON 文本，字段与平台排行榜同名）：
 {
-  "score": 97.8571,
-  "mode": "cail_gold",           # 或 "self_check"
-  "breakdown": {"Localization": 95.71, "Revision": 100.0,
-                "Loc_typo": 100, "Loc_inconsistency": 85.71, "Loc_missing": 100,
-                "Rev_typo": 100, "Rev_inconsistency": 100, "Rev_missing": 100},
-  "feedback": "按 CAIL 口径评分。结构校验通过。"
+  "score": 100.0,
+  "mode": "cail_gold",            # 有 gold；无 gold 为 "self_check"
+  "breakdown": {
+    "Total": 100.0, "Localization": 100.0, "Revision": 100.0,
+    "Loc_typo": 100.0, "Loc_inconsistency": 100.0, "Loc_missing": 100.0,
+    "Rev_typo": 100.0, "Rev_inconsistency": 100.0, "Rev_missing": 100.0,
+    "Typo_TP": 4, "Typo_FP": 0, "Typo_FN": 0
+  },
+  "feedback": "官方口径评分…结构校验通过。"
 }
 ```
-解析要点：
-- `mode="cail_gold"`：有标准答案，按 CAIL 口径（定位 1:3:6、修订 10:30:60）给出 `Localization/Revision/Total`；
-- `mode="self_check"`：无标准答案，给出结构合法性 + 修订后残余问题的自检分；
+解析要点（反推自平台字段，已用两次实测校准）：
+- `Localization = 0.1·Loc_typo + 0.3·Loc_inconsistency + 0.6·Loc_missing`（三类段落级 F1）；
+- `Revision = 0.1·Rev_typo + 0.3·Rev_inconsistency + 0.6·Rev_missing`；
+- `Rev_typo` 为**字级 F0.5**（ChERRANT，看 `Typo_TP/FP/FN`：FP 高说明改多了，FN 高说明漏了）；
+- `Total = 0.5·Localization + 0.5·Revision`；
 - 逐项读 `breakdown`，指出**最低分项**作为改进方向，并在答复中转述 `feedback`。
+- 注意：定位分对「要素缺失」权重最高（0.6），修订分同理（0.6），优先保这两项。
 
 ## 错误处理
 - 返回 `isError` 或 `error` 时：**先校验入参结构**（字段名/类型/区间/逐字一致），再重试，不要盲目重发。

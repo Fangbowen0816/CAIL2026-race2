@@ -84,7 +84,11 @@ TOOLS = [
 
 def handle_tool(name, args):
     if name == "list_rubric":
-        return {"rubric": "有 gold：CAIL 口径 L/R/Total（定位 1:3:6，修订 10:30:60）；"
+        return {"rubric": "有 gold：返回平台同名字段 Total/Localization/Revision 及各分项 "
+                          "Loc_typo、Loc_inconsistency、Loc_missing、Rev_typo、Rev_inconsistency、"
+                          "Rev_missing、Typo_TP/FP/FN；"
+                          "定位 = 0.1·Loc_typo+0.3·Loc_inc+0.6·Loc_miss，"
+                          "修订 = 0.1·Rev_typo+0.3·Rev_inc+0.6·Rev_miss，Total = 0.5·L+0.5·R。"
                           "无 gold：自检分（结构合法性 + 修订后残余问题）。"}
     if name == "submit_contract_review":
         res = score_review(args["contract_id"], args["context"],
