@@ -69,7 +69,7 @@ def _env_headers() -> dict:
 
 class LLMClient:
     def __init__(self, api_key=None, base_url=None, model=None, headers=None,
-                 timeout=600, session=None, json_mode=None):
+                 timeout=600, session=None, json_mode=None, seed=None):
         self.api_key = (api_key or os.environ.get("CAIL_API_KEY")
                         or os.environ.get("DEEPSEEK_API_KEY")
                         or os.environ.get("KSXC_AUTH_TOKEN"))
@@ -82,6 +82,7 @@ class LLMClient:
         if json_mode is None:
             json_mode = os.environ.get("CAIL_JSON_MODE", "1") not in ("0", "false", "False")
         self.json_mode = json_mode
+        self.seed = seed if seed is not None else int(os.environ.get("CAIL_SEED", "42"))
         self.timeout = timeout
         self.session = session or requests.Session()
 
@@ -96,7 +97,8 @@ class LLMClient:
 
     def chat(self, messages, temperature=0.0, max_retries=3) -> str:
         url = self.base_url + "/chat/completions"
-        payload = {"model": self.model, "messages": messages, "temperature": temperature}
+        payload = {"model": self.model, "messages": messages,
+                   "temperature": temperature, "seed": self.seed}
         if self.json_mode:
             payload["response_format"] = {"type": "json_object"}
         last = None

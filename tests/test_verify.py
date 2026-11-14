@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from cail_race2.facts import extract_facts
-from cail_race2.verify import verify
+from cail_race2.verify import find_missing_candidates, verify
 
 
 def _verify(paras):
@@ -39,6 +39,12 @@ def test_missing_marker_detected():
 def test_clean_paragraph_has_no_conflict():
     paras = {1: "甲方应在30日内支付合同价款。"}
     assert [c for c in _verify(paras) if c.kind in ("conflict", "arithmetic")] == []
+
+
+def test_find_missing_candidates_strong_filters_weak_markers():
+    paras = {1: "详见附件。", 2: "另行协商。"}
+    assert [c.pids[0] for c in find_missing_candidates(paras)] == [1, 2]
+    assert [c.pids[0] for c in find_missing_candidates(paras, strong=True)] == [2]
 
 
 def test_verify_output_sorted_by_pid():

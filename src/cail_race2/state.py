@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 class ContractState:
     contract_id: str
     paragraphs: dict[int, str]                      # 原始段落，不可变
+    context: str = ""                              # 原始合同全文（含 <p id> 标签）
     facts: list = field(default_factory=list)       # list[Fact]
     conflicts: list = field(default_factory=list)   # list[Conflict]
     localizations: list = field(default_factory=list)  # list[LocalizationRecord]

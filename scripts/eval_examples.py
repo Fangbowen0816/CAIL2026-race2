@@ -22,6 +22,10 @@ from cail_race2.evaluate import (localization_score, revision_score,  # noqa: E4
                                 total_score)
 from cail_race2.llm import LLMClient  # noqa: E402
 from cail_race2.predictor import LLMPredictor, NullPredictor  # noqa: E402
+from cail_race2.stage import run_stages  # noqa: E402
+from cail_race2.stages import (FactsStage, LLMDetectStage,  # noqa: E402
+                               LLMReviseStage, VerifyStage)
+from cail_race2.state import ContractState  # noqa: E402
 
 DEFAULT_DIR = os.path.join(ROOT, "resources", "datasets", "race2_contract_review", "提交示例")
 
@@ -35,6 +39,7 @@ def main() -> int:
     ap.add_argument("--examples", default=DEFAULT_DIR)
     ap.add_argument("--pred-dir", default=None, help="已有提交目录（含两份 jsonl）")
     ap.add_argument("--mock", action="store_true")
+    ap.add_argument("--legacy", action="store_true", help="用旧的单步 predictor")
     ap.add_argument("--model", default=None)
     ap.add_argument("--base-url", default=None)
     a = ap.parse_args()
@@ -49,11 +54,16 @@ def main() -> int:
         pred_loc = _read_jsonl(os.path.join(a.pred_dir, "localization_predictions.jsonl"))
         pred_rev = _read_jsonl(os.path.join(a.pred_dir, "revision_predictions.jsonl"))
     else:
-        predictor = NullPredictor() if a.mock else LLMPredictor(
-            LLMClient(base_url=a.base_url, model=a.model))
+        client = LLMClient(base_url=a.base_url, model=a.model)
         pred_loc, pred_rev = [], []
         for c in contracts.values():
-            locs, revs = predictor.predict(c)
+            if a.legacy:
+                locs, revs = LLMPredictor(client).predict(c)
+            else:
+                st = run_stages(ContractState(c.contract_id, c.paragraphs, c.context),
+                                [FactsStage(), VerifyStage(),
+                                 LLMDetectStage(client), LLMReviseStage(client)])
+                locs, revs = st.localizations, st.revisions
             pred_loc += [r.to_dict() for r in locs]
             pred_rev += [r.to_dict() for r in revs]
 

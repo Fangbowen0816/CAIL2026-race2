@@ -75,3 +75,10 @@ def test_extra_headers_are_sent():
     sent = sess.calls[0][2]
     assert sent["ksyun-code-type"] == "ksxc-cli"
     assert sent["Authorization"] == "Bearer sk-x"
+
+
+def test_seed_is_sent_in_payload():
+    sess = FakeSession([FakeResponse(200, {"choices": [{"message": {"content": "{}"}}]})])
+    c = LLMClient(api_key="sk-x", session=sess, seed=7)
+    c.chat([{"role": "user", "content": "hi"}])
+    assert sess.calls[0][1]["seed"] == 7

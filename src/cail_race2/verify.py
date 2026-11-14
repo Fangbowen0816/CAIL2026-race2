@@ -31,6 +31,9 @@ _MISSING_MARKERS = ("另行协商", "另行约定", "另行确定", "另行签�
                     "待定", "待补充", "待商定", "待确定", "未约定", "暂无",
                     "详见附件", "见附件", "以实际为准", "TBD", "＿＿", "____",
                     "（　）", "（）", "( )")
+# 强标记：几乎必然是缺失（用于确定性合并进召回）
+_STRONG_MISSING = ("另行协商", "另行约定", "另行确定", "另行签订", "另行补充", "另行商定",
+                   "待定", "待补充", "待商定", "待确定", "未约定", "暂无")
 _EMPTY_FIELD_RE = re.compile(
     r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款)\s*[:：]\s*(?=[，。；\n]|$)")
 
@@ -80,11 +83,12 @@ def check_arithmetic(facts: list[Fact], paragraphs: dict[int, str]) -> list[Conf
     return out
 
 
-def find_missing_candidates(paragraphs: dict[int, str]) -> list[Conflict]:
+def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) -> list[Conflict]:
+    markers = _STRONG_MISSING if strong else _MISSING_MARKERS
     out: list[Conflict] = []
     for pid in sorted(paragraphs):
         text = paragraphs[pid]
-        hits = [m for m in _MISSING_MARKERS if m in text]
+        hits = [m for m in markers if m in text]
         if hits:
             out.append(Conflict("missing", [pid], "缺失标记: " + "、".join(hits)))
         elif _EMPTY_FIELD_RE.search(text):

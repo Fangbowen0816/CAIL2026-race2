@@ -114,9 +114,9 @@ def main() -> int:
                 err(f"revision {cid} 第{n}行: 段落 p{pid} 重复修订")
             seen_pids[cid].add(pid)
             expected = loc_by_pid.get(cid, {}).get(pid, set())
-            if expected and set(obj["error_types"]) != expected:
-                warn(f"revision {cid} p{pid}: error_types={obj['error_types']} "
-                     f"与定位类型并集 {sorted(expected)} 不一致")
+            if set(obj["error_types"]) != expected:
+                err(f"revision {cid} p{pid}: error_types={obj['error_types']} "
+                    f"与定位类型并集 {sorted(expected)} 不一致")
 
     _report(errors, warns)
     return 1 if errors else 0

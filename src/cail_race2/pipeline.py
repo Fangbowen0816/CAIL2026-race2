@@ -9,6 +9,10 @@ from dataclasses import dataclass
 from .contracts import Contract, load_contracts
 from .predictor import Predictor
 from .records import LocalizationRecord, RevisionRecord
+from .revise import reconcile
+from .stage import run_stages
+from .stages import FactsStage, LLMDetectStage, LLMReviseStage, VerifyStage
+from .state import ContractState
 from .submission import write_jsonl
 
 
@@ -68,6 +72,46 @@ def run(contracts_path: str, out_dir: str, predictor: Predictor,
             locs, revs = predictor.predict(c)
             _save_cache(path, locs, revs)
             progress(f"[{i}/{len(contracts)}] {c.contract_id} "
+                     f"loc={len(locs)} rev={len(revs)}")
+        all_locs.extend(locs)
+        all_revs.extend(revs)
+        stats.contracts += 1
+
+    write_jsonl(os.path.join(out_dir, "localization_predictions.jsonl"),
+                [r.to_dict() for r in all_locs])
+    write_jsonl(os.path.join(out_dir, "revision_predictions.jsonl"),
+                [r.to_dict() for r in all_revs])
+    stats.localizations = len(all_locs)
+    stats.revisions = len(all_revs)
+    return stats
+
+
+def run_staged(contracts_path: str, out_dir: str, client,
+               force: bool = False, limit: int | None = None,
+               progress=lambda msg: None) -> RunStats:
+    """按 Stage 流编排：facts → verify → detect(LLM) → revise(LLM)，逐合同缓存。"""
+    contracts: list[Contract] = load_contracts(contracts_path)
+    if limit is not None:
+        contracts = contracts[:limit]
+
+    stages = [FactsStage(), VerifyStage(), LLMDetectStage(client), LLMReviseStage(client)]
+    all_locs: list[LocalizationRecord] = []
+    all_revs: list[RevisionRecord] = []
+    stats = RunStats()
+
+    for i, c in enumerate(contracts, 1):
+        path = _cache_path(out_dir, c.contract_id)
+        cached = None if force else _load_cache(path)
+        if cached is not None:
+            locs, revs = cached
+            locs, revs = reconcile(c.contract_id, locs, revs)
+            progress(f"[{i}/{len(contracts)}] {c.contract_id} (cache)")
+        else:
+            state = run_stages(ContractState(c.contract_id, c.paragraphs, c.context), stages)
+            locs, revs = state.localizations, state.revisions
+            _save_cache(path, locs, revs)
+            progress(f"[{i}/{len(contracts)}] {c.contract_id} "
+                     f"facts={len(state.facts)} conflicts={len(state.conflicts)} "
                      f"loc={len(locs)} rev={len(revs)}")
         all_locs.extend(locs)
         all_revs.extend(revs)

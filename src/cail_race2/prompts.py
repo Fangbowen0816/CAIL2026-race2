@@ -1,52 +1,54 @@
 # -*- coding: utf-8 -*-
-"""提示词（占位版；具体方案确定后重写）。
-
-两阶段：先定位（localize），带定位结果再修订（revise）。
-只要求模型输出 JSON，解析在 predictor.py 中做归一化与校验。
-"""
+"""提示词：两阶段（定位 → 修订），支持注入确定性预分析线索（hints）。"""
 from __future__ import annotations
 
 from .contracts import Contract
 
-_LOCATE_SYS = """你是一名资深合同审查专家。阅读带段落编号的合同全文，找出其中的问题并定位到段落编号。
+_LOCATE_SYS = """你是一名资深中文合同审查专家。阅读带段落编号的合同全文（<p id="N">正文</p>），找出并定位三类问题：
 
-问题分三类：
-- typo（错别字）：可根据上下文还原的错字、漏字、多字等文字错误。
+- typo（错别字）：可根据上下文合理还原的错字、漏字、多字、别字。
 - inconsistency（上下文不一致）：同一主体或事项的名称、金额、日期、数量、义务等表述相互冲突。
-- missing_element（要素缺失）：已有条款内部缺少必要信息（如交付时间仍写“另行协商”）。
+- missing_element（要素缺失）：已有条款内部缺少必要信息（如交付时间/金额/当事人仍写“另行协商”“另行约定”“待定”或留空）。
 
 定位规则：
-- 定位到段落编号粒度；一个问题涉及多段时列出全部相关 id（含冲突的每一侧）。
-- 同段可有不同类型的问题，分别报告；同类型、同一组位置的多个问题合并为一条。
-- 跨段连续区间才用 [s,e]；不连续用多个单点区间，严禁为连接两处而包含无关中间段。
+1. 定位到段落编号；一个问题涉及多段时列出全部相关 id（含冲突的每一侧），不要只报准备修改的一侧。
+2. 连续区间写 [[s,e]]；不连续位置写多个单点区间，如 [[1,1],[3,3]]；严禁为连接两处而包含无关中间段。
+3. 同段可有不同类型问题，分别报告；同类型且位置集合相同的合并为一条。
+4. 信息在全文其他条款已明确、可对应的，不判为缺失。
+5. 预分析线索仅供交叉核对，须自行通读全文，勿盲从、勿漏报。
 
-严格只输出 JSON：{"issues": [{"location": [[s, e]], "error_type": "typo|inconsistency|missing_element"}]}
-若合同没有任何问题，输出 {"issues": []}。"""
+严格只输出 JSON：{"issues":[{"location":[[s,e]],"error_type":"typo|inconsistency|missing_element"}]}
+若合同没有任何问题，输出 {"issues":[]}。"""
 
+_REVISE_SYS = """你是一名资深中文合同审查专家。根据合同全文与已定位问题，给出每个问题段的**完整最终正文**。
 
-def locate_messages(contract: Contract) -> list[dict]:
-    return [
-        {"role": "system", "content": _LOCATE_SYS},
-        {"role": "user", "content": "合同全文：\n" + contract.context},
-    ]
-
-
-_REVISE_SYS = """你是一名资深合同审查专家。根据合同全文与已定位的问题，修订问题条款。
-
-修订要求：
-- 只返回实际修改的段落；每段给出完整最终正文（不含 <p> 标签），一次修订解决该段所有问题。
-- 错别字：纠正文字错误，保留原意。不一致：选择一个可成立的完整方案并同步所有关联位置。
-- 要素缺失：按全文已知信息补齐；全文无法确定时可自行拟定合理、内部协调的约定。
-- original_text 必须与原文该段逐字一致。
+要求：
+1. 只返回实际修改的段落；每段一次修订解决该段全部问题，返回该段完整文本（不含 <p> 标签）。
+2. 错别字：纠正文字错误，保留原意与有效约定。
+3. 不一致：选定**一套**可成立的取值，并同步到所有相关段落（名称/金额/数量/日期/计算关系/义务），不得只改一侧。
+   全文无优先约定时取任一可行值但全文统一；须遵守合同已有的定义、单位、币种、优先或变更约定。
+   计算类：保留输入量并按关系重算，不要凭空造第三套交易条件。
+4. 要素缺失：必须补出**具体**信息（例如“本合同生效后10个工作日内”），可依据全文推导；
+   全文无法确定时给出合理且内部协调的具体约定；**不得只写“另行协商”**。
+5. original_text 必须是该段原文（系统会按定位回填，写对即可）。
 
 严格只输出 JSON：
-{"revisions": [{"location": [[p, p]], "error_types": ["typo"], "original_text": "...", "correct_answer": "..."}]}
-无需修改则输出 {"revisions": []}。"""
+{"revisions":[{"location":[[p,p]],"error_types":["typo"],"original_text":"...","correct_answer":"..."}]}
+无需修改输出 {"revisions":[]}。"""
 
 
-def revise_messages(contract: Contract, issues_json: str) -> list[dict]:
-    return [
-        {"role": "system", "content": _REVISE_SYS},
-        {"role": "user", "content": "合同全文：\n" + contract.context
-         + "\n\n已定位的问题：\n" + issues_json},
-    ]
+def locate_messages(contract: Contract, hints: str = "") -> list[dict]:
+    user = "合同全文：\n" + contract.context
+    if hints:
+        user += "\n\n" + hints
+    return [{"role": "system", "content": _LOCATE_SYS},
+            {"role": "user", "content": user}]
+
+
+def revise_messages(contract: Contract, issues_json: str, hints: str = "") -> list[dict]:
+    user = ("合同全文：\n" + contract.context
+            + "\n\n已定位的问题：\n" + issues_json)
+    if hints:
+        user += "\n\n" + hints
+    return [{"role": "system", "content": _REVISE_SYS},
+            {"role": "user", "content": user}]
