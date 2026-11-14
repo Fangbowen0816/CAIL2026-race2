@@ -11,3 +11,6 @@ venv/
 
 # ---- 运行产物 ----
 outputs/
+
+# 与本项目无关的大文件（保留本地，不入库）
+/resources/AI-Law-Course.html
