@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from cail_race2.records import LocalizationRecord, RevisionRecord
-from cail_race2.revise import apply_revisions, reconcile, revise
+from cail_race2.revise import apply_revisions, normalize_revisions, reconcile, revise
 
 
 class FakeClient:
@@ -47,3 +47,11 @@ def test_reconcile_adds_localization_for_unlocalized_revision():
     locs, new_revs = reconcile("C1", [], revs)
     assert any(r.location == [[3, 3]] and r.error_type == "missing_element" for r in locs)
     assert new_revs[0].error_types == ["missing_element"]
+
+
+def test_normalize_revisions_backfills_decoded_text_and_unescapes_answer():
+    paras = {2: "<table>原文"}
+    revs = [RevisionRecord("C1", [[2, 2]], ["typo"], "旧", "&lt;table&gt;新文")]
+    out = normalize_revisions("C1", paras, revs)
+    assert out[0].original_text == "<table>原文"
+    assert out[0].correct_answer == "<table>新文"

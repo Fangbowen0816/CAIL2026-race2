@@ -2,6 +2,7 @@
 """LLM 修订阶段：合同 + 定位 + 预分析 → RevisionRecord[]，并回填最终段落。"""
 from __future__ import annotations
 
+import html
 import json
 from collections import defaultdict
 
@@ -66,3 +67,21 @@ def apply_revisions(paragraphs: dict[int, str],
         if len(loc) == 1 and r.correct_answer:
             final[loc[0][0]] = r.correct_answer
     return final
+
+
+def normalize_revisions(contract_id: str, paragraphs: dict[int, str],
+                        revs: list[RevisionRecord]) -> list[RevisionRecord]:
+    """把 original_text 重新回填为平台口径的段落正文（已 HTML 反转义），
+    并反转义 correct_answer。幂等，用于修正缓存/模型输出。"""
+    out: list[RevisionRecord] = []
+    for r in revs:
+        loc = r.location or []
+        if len(loc) == 1 and len(loc[0]) == 2 and loc[0][0] == loc[0][1]:
+            pid = loc[0][0]
+            orig = paragraphs.get(pid, r.original_text)
+            ans = html.unescape(r.correct_answer) if isinstance(r.correct_answer, str) \
+                else r.correct_answer
+            out.append(RevisionRecord(contract_id, r.location, r.error_types, orig, ans))
+        else:
+            out.append(r)
+    return out

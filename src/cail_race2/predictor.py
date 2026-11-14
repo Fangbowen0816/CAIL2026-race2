@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import html
 import json
 from typing import Protocol
 
@@ -67,8 +68,11 @@ def parse_revisions(contract: Contract, obj) -> list[RevisionRecord]:
             continue
         seen.add(pid)
         types = [t for t in dict.fromkeys(item.get("error_types") or []) if t in ERROR_TYPE_SET]
+        answer = item.get("correct_answer")
+        if isinstance(answer, str):
+            answer = html.unescape(answer)
         rec = RevisionRecord(contract.contract_id, [[pid, pid]], types,
-                             contract.paragraphs[pid], item.get("correct_answer"))
+                             contract.paragraphs[pid], answer)
         if not validate_revision(rec, contract.paragraphs):
             records.append(rec)
     if not records:

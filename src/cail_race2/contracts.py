@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import html
 import json
 import re
 from dataclasses import dataclass
@@ -21,10 +22,14 @@ class Contract:
 
 
 def parse_paragraphs(context: str) -> dict[int, str]:
-    """从 context 提取 {段落编号: 正文}，保持出现顺序。"""
+    """从 context 提取 {段落编号: 正文}，保持出现顺序。
+
+    正文做 HTML 反转义，与平台“公开输入段落”口径一致
+    （平台把 ``&lt;table&gt;`` 视为 ``<table>``）。
+    """
     result: dict[int, str] = {}
     for m in _P_RE.finditer(context or ""):
-        result[int(m.group("pid"))] = m.group("text")
+        result[int(m.group("pid"))] = html.unescape(m.group("text"))
     return result
 
 

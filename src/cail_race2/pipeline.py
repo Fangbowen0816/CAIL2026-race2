@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from .contracts import Contract, load_contracts
 from .predictor import Predictor
 from .records import LocalizationRecord, RevisionRecord
-from .revise import reconcile
+from .revise import normalize_revisions, reconcile
 from .stage import run_stages
 from .stages import FactsStage, LLMDetectStage, LLMReviseStage, VerifyStage
 from .state import ContractState
@@ -105,6 +105,7 @@ def run_staged(contracts_path: str, out_dir: str, client,
         if cached is not None:
             locs, revs = cached
             locs, revs = reconcile(c.contract_id, locs, revs)
+            revs = normalize_revisions(c.contract_id, c.paragraphs, revs)
             progress(f"[{i}/{len(contracts)}] {c.contract_id} (cache)")
         else:
             state = run_stages(ContractState(c.contract_id, c.paragraphs, c.context), stages)

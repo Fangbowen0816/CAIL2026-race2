@@ -14,6 +14,11 @@ def test_parse_keeps_empty_and_ignores_non_p_tags():
     assert parse_paragraphs(ctx) == {1: "", 2: "x"}
 
 
+def test_parse_decodes_html_entities():
+    ctx = '<p id="1">&lt;table&gt;</p><p id="2">A&amp;B</p>'
+    assert parse_paragraphs(ctx) == {1: "<table>", 2: "A&B"}
+
+
 def test_load_contracts_reads_all_lines(tmp_path):
     p = tmp_path / "c.jsonl"
     p.write_text(
