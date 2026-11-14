@@ -51,3 +51,23 @@ def test_verify_output_sorted_by_pid():
     paras = {5: "交付时间另行协商。", 2: "合同总价2000元。", 9: "合同总价2200元。"}
     cs = _verify(paras)
     assert [c.pids[0] for c in cs] == sorted(c.pids[0] for c in cs)
+
+
+def test_placeholder_xx_detected():
+    paras = {33: "乙方应于本合同签订后的【5】日（自XX年XX月XX日至XX年XX月XX日）内提供服务。"}
+    cs = [c for c in _verify(paras) if c.kind == "missing"]
+    assert cs and cs[0].pids == [33]
+
+
+def test_placeholder_underscore_detected():
+    cs = [c for c in _verify({2: "交付地点：＿＿＿＿。"}) if c.kind == "missing"]
+    assert cs and cs[0].pids == [2]
+
+
+def test_empty_field_label_detected():
+    cs = [c for c in _verify({5: "履行地点："}) if c.kind == "missing"]
+    assert cs and cs[0].pids == [5]
+
+
+def test_clean_obligation_not_missing():
+    assert [c for c in _verify({1: "乙方应在30日内支付合同价款。"}) if c.kind == "missing"] == []

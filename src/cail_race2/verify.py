@@ -35,7 +35,10 @@ _MISSING_MARKERS = ("另行协商", "另行约定", "另行确定", "另行签�
 _STRONG_MISSING = ("另行协商", "另行约定", "另行确定", "另行签订", "另行补充", "另行商定",
                    "待定", "待补充", "待商定", "待确定", "未约定", "暂无")
 _EMPTY_FIELD_RE = re.compile(
-    r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款)\s*[:：]\s*(?=[，。；\n]|$)")
+    r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款|账户|开户行|税号)"
+    r"\s*[:：]\s*(?=[，。；\n]|$)")
+# 占位符未填（高精度缺失信号）
+_PLACEHOLDER_RE = re.compile(r"(?:XX|xx|××|_{2,}|【\s*】)")
 
 
 def find_conflicts(facts: list[Fact]) -> list[Conflict]:
@@ -88,10 +91,13 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
     out: list[Conflict] = []
     for pid in sorted(paragraphs):
         text = paragraphs[pid]
+        if _PLACEHOLDER_RE.search(text):
+            out.append(Conflict("missing", [pid], "占位符未填（XX/＿＿）"))
+            continue
         hits = [m for m in markers if m in text]
         if hits:
             out.append(Conflict("missing", [pid], "缺失标记: " + "、".join(hits)))
-        elif _EMPTY_FIELD_RE.search(text):
+        elif not strong and _EMPTY_FIELD_RE.search(text):
             out.append(Conflict("missing", [pid], "空字段"))
     return out
 
