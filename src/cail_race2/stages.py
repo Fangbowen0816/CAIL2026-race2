@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from .detect import detect, merge_deterministic
 from .facts import extract_facts
+from .fill import apply_missing_fills
 from .hints import build_hints
 from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
@@ -58,6 +59,8 @@ class LLMReviseStage:
         locs, revs = reconcile(state.contract_id, state.localizations, revs)
         locs, revs = apply_arithmetic_repairs(state.contract_id, state.paragraphs,
                                               state.facts, locs, revs)
+        locs, revs = reconcile(state.contract_id, locs, revs)
+        locs, revs = apply_missing_fills(state.contract_id, state.paragraphs, locs, revs)
         locs, revs = reconcile(state.contract_id, locs, revs)
         revs = normalize_revisions(state.contract_id, state.paragraphs, revs)
         return state.clone(localizations=locs, revisions=revs,
