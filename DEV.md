@@ -9,10 +9,16 @@ CAIL2026/
 ├── resources/                       # 只读：官方资料 + 数据集（见 resources/official/2026/README.md）
 ├── src/cail_race2/
 │   ├── contracts.py   # 读合同、解析 <p id> 段落
+│   ├── state.py       # ContractState（唯一真相源）
+│   ├── stage.py       # Stage 接口 + run_stages 确定性编排
+│   ├── stages.py      # FactsStage / VerifyStage
+│   ├── facts.py       # 正则事实抽取（当事人/金额/数量/日期/期限/编号）
+│   ├── verify.py      # 一致性检查（冲突/单价×数量≠总价/缺失标记）
 │   ├── records.py     # 定位/修订记录数据类 + 不变量校验
-│   ├── llm.py         # DeepSeek（OpenAI 兼容）客户端；key 只走环境变量
+│   ├── llm.py         # OpenAI 兼容客户端（默认官方 DeepSeek）；key 只走环境变量
 │   ├── prompts.py     # 提示词（占位，方案确定后重写）
 │   ├── predictor.py   # Predictor 接口 + NullPredictor + LLMPredictor + 响应归一化
+│   ├── evaluate.py    # 本地评测（定位精确 + 修订近似）
 │   ├── submission.py  # 原子写 JSONL + 打包 zip
 │   └── pipeline.py    # 端到端编排（逐合同缓存，可断点续跑）
 ├── scripts/
@@ -50,20 +56,18 @@ python scripts/eval_examples.py --pred-dir outputs/prelim
 
 ## 环境变量（勿写入代码/仓库/日志）
 
-已实测确认（2026-11-14）可用配置：
+已实测确认（2026-11-14）可用配置（官方 DeepSeek）：
 
 | 变量 | 说明 | 默认 |
 | --- | --- | --- |
 | `CAIL_API_KEY` | 必填；回退 `DEEPSEEK_API_KEY` / `KSXC_AUTH_TOKEN` | — |
-| `CAIL_BASE_URL` | OpenAI 兼容端点 | `https://shared.kscc.api.ksyun.com/v1` |
-| `CAIL_MODEL` | 模型 id | `deepseek-v4.1-flash` |
-| `CAIL_HEADERS` | 额外请求头 JSON（ksxc 网关必需 `ksyun-code-type: ksxc-cli`） | `{"ksyun-code-type":"ksxc-cli"}` |
+| `CAIL_BASE_URL` | OpenAI 兼容端点 | `https://api.deepseek.com` |
+| `CAIL_MODEL` | 模型 id | `deepseek-flash` |
 | `CAIL_JSON_MODE` | 是否用 `response_format=json_object` | `1` |
 
-- 已验证：`GET /cli/models` 返回含 `deepseek-v4-flash / deepseek-v4-pro-0813 /
-  deepseek-v4.1-flash / glm-5.3 / glm-5.3-flash / kimi-k3`；
-  `POST /chat/completions`（model=`deepseek-v4.1-flash`）返回 200。
-- 最小必需头：`ksyun-code-type: ksxc-cli`（缺少则 403 ApiKeyForbidden）。
+- 官方 `/models` 仅 `deepseek-flash` / `deepseek-v4-pro`（无 v4.1-flash）。
+- 若改回 ksxc 网关：`CAIL_BASE_URL=https://shared.kscc.api.ksyun.com/v1`、
+  `CAIL_MODEL=deepseek-v4.1-flash`、`CAIL_HEADERS={"ksyun-code-type":"ksxc-cli"}`。
 
 ## 已实现的关键不变量
 

@@ -1,0 +1,99 @@
+# -*- coding: utf-8 -*-
+"""确定性一致性检查。
+
+三类信号：
+- conflict   ：同一槽位出现互相冲突的取值（当事人名、合同总价、编号）
+- arithmetic ：单价 × 数量 ≠ 总价（同段内）
+- missing    ：条款含「另行协商/待定/空字段」等缺失标记
+"""
+from __future__ import annotations
+
+import re
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+from .facts import Fact, extract_facts
+
+
+@dataclass
+class Conflict:
+    kind: str                       # conflict | arithmetic | missing
+    pids: list[int]
+    detail: str
+    slot: str = ""
+
+    def to_dict(self) -> dict:
+        return {"kind": self.kind, "pids": self.pids, "detail": self.detail,
+                "slot": self.slot}
+
+
+_MISSING_MARKERS = ("另行协商", "另行约定", "另行确定", "另行签订", "另行补充", "另行商定",
+                    "待定", "待补充", "待商定", "待确定", "未约定", "暂无",
+                    "详见附件", "见附件", "以实际为准", "TBD", "＿＿", "____",
+                    "（　）", "（）", "( )")
+_EMPTY_FIELD_RE = re.compile(
+    r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款)\s*[:：]\s*(?=[，。；\n]|$)")
+
+
+def find_conflicts(facts: list[Fact]) -> list[Conflict]:
+    groups: dict = defaultdict(list)
+    for f in facts:
+        if f.kind == "party" and f.slot:
+            groups[("party", f.slot)].append(f)
+        elif f.kind == "money" and f.slot == "总价":
+            groups[("money", "总价")].append(f)
+        elif f.kind == "code":
+            groups[("code", "编号")].append(f)
+
+    out: list[Conflict] = []
+    for (kind, slot), fs in groups.items():
+        values = sorted({f.value for f in fs})
+        if len(values) >= 2:
+            pids = sorted({f.pid for f in fs})
+            out.append(Conflict("conflict", pids,
+                                f"{kind}/{slot} 取值冲突: " + " vs ".join(str(v) for v in values), slot))
+    return out
+
+
+def check_arithmetic(facts: list[Fact], paragraphs: dict[int, str]) -> list[Conflict]:
+    """同段内：单价 × 数量 与 总价 校验（各值唯一时才判，避免多标的误报）。"""
+    by_pid: dict = defaultdict(lambda: {"unit": [], "qty": [], "total": []})
+    for f in facts:
+        if f.kind == "money" and f.slot == "单价":
+            by_pid[f.pid]["unit"].append(f)
+        elif f.kind == "quantity" and f.slot == "数量":
+            by_pid[f.pid]["qty"].append(f)
+        elif f.kind == "money" and f.slot == "总价":
+            by_pid[f.pid]["total"].append(f)
+
+    out: list[Conflict] = []
+    for pid, g in by_pid.items():
+        if len(g["unit"]) == 1 and len(g["qty"]) == 1 and len(g["total"]) == 1:
+            unit, qty, total = g["unit"][0], g["qty"][0], g["total"][0]
+            if unit.number is not None and qty.number is not None and total.number is not None:
+                expected = unit.number * qty.number
+                if abs(expected - total.number) > 0.01:
+                    out.append(Conflict(
+                        "arithmetic", [pid],
+                        f"单价{unit.value}×数量{qty.number:g}={expected:g}，与总价{total.value}不符",
+                        "总价"))
+    return out
+
+
+def find_missing_candidates(paragraphs: dict[int, str]) -> list[Conflict]:
+    out: list[Conflict] = []
+    for pid in sorted(paragraphs):
+        text = paragraphs[pid]
+        hits = [m for m in _MISSING_MARKERS if m in text]
+        if hits:
+            out.append(Conflict("missing", [pid], "缺失标记: " + "、".join(hits)))
+        elif _EMPTY_FIELD_RE.search(text):
+            out.append(Conflict("missing", [pid], "空字段"))
+    return out
+
+
+def verify(paragraphs: dict[int, str], facts: list[Fact] | None = None) -> list[Conflict]:
+    facts = facts if facts is not None else extract_facts(paragraphs)
+    out = (find_conflicts(facts) + check_arithmetic(facts, paragraphs)
+           + find_missing_candidates(paragraphs))
+    return sorted(out, key=lambda c: (c.pids[0] if c.pids else 0, c.kind))
