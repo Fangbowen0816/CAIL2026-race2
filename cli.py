@@ -144,6 +144,8 @@ def cmd_webui(a):
 
 
 def main() -> int:
+    from cail_race2.env import load_dotenv
+    load_dotenv(os.path.join(ROOT, ".env"))
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", default=None)
     sub = ap.add_subparsers(dest="cmd", required=True)

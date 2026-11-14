@@ -26,6 +26,8 @@ DEFAULT_CONTRACTS = os.path.join(
 
 
 def main() -> int:
+    from cail_race2.env import load_dotenv
+    load_dotenv(os.path.join(ROOT, ".env"))
     ap = argparse.ArgumentParser()
     ap.add_argument("--contracts", default=DEFAULT_CONTRACTS)
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "agent_bench"))

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Agent 的 LLM provider 配置。
+"""Agent 的 LLM provider 配置（金山云星流 / Star Stream，OpenAI 兼容）。
 
-优先用 ksxc（金山云码）provider：base_url + 客户端识别头 + deepseek-v4.1-flash。
-配置来源优先级：环境变量 → ~/.pi/agent/models.json → ~/.ksxc/auth.json。
+配置来源优先级：环境变量（含 .env） → ~/.pi/agent/models.json(ksxc) → ~/.ksxc/auth.json。
+默认端点 https://kspmas.ksyun.com/v1 ，模型 deepseek-v4.1-flash。
 """
 from __future__ import annotations
 
@@ -10,9 +10,9 @@ import json
 import os
 from dataclasses import dataclass
 
-KSXC_BASE_URL = "https://shared.kscc.api.ksyun.com/v1"
-KSXC_HEADERS = {"ksyun-code-type": "ksxc-cli"}
-KSXC_MODEL = "deepseek-v4.1-flash"
+DEFAULT_BASE_URL = "https://kspmas.ksyun.com/v1"
+DEFAULT_HEADERS: dict = {}
+DEFAULT_MODEL = "deepseek-v4.1-flash"
 
 
 @dataclass
@@ -53,22 +53,28 @@ def _from_ksxc_auth() -> dict | None:
         return None
 
 
-def load_ksxc_provider(model: str = KSXC_MODEL) -> Provider:
-    base_url = os.environ.get("CAIL_BASE_URL", KSXC_BASE_URL)
-    headers = dict(KSXC_HEADERS)
+def load_ksxc_provider(model: str | None = None) -> Provider:
+    base_url = os.environ.get("CAIL_BASE_URL") or DEFAULT_BASE_URL
+    headers = dict(DEFAULT_HEADERS)
     key = os.environ.get("CAIL_API_KEY") or os.environ.get("KSXC_AUTH_TOKEN")
 
-    src = _from_models_json()
-    if src:
-        base_url = os.environ.get("CAIL_BASE_URL", src.get("base_url") or base_url)
-        if src.get("headers"):
-            headers = dict(src["headers"])
-        key = key or src.get("api_key")
+    if os.environ.get("CAIL_HEADERS") is not None:
+        try:
+            headers = json.loads(os.environ["CAIL_HEADERS"] or "{}")
+        except json.JSONDecodeError:
+            headers = dict(DEFAULT_HEADERS)
 
     if not key:
-        a = _from_ksxc_auth()
-        key = (a or {}).get("api_key")
-
+        src = _from_models_json()
+        if src:
+            base_url = base_url or src.get("base_url")
+            key = src.get("api_key")
+            if os.environ.get("CAIL_HEADERS") is None and src.get("headers"):
+                headers = dict(src["headers"])
     if not key:
-        raise RuntimeError("找不到 ksxc token：请配置 ~/.pi/agent/models.json 或 ~/.ksxc/auth.json")
-    return Provider("ksxc", base_url.rstrip("/"), model, key, headers)
+        key = (_from_ksxc_auth() or {}).get("api_key")
+    if not key:
+        raise RuntimeError("找不到 API key：请配置 .env / CAIL_API_KEY，或 ~/.pi/agent/models.json")
+
+    return Provider("starstream", base_url.rstrip("/"),
+                    model or os.environ.get("CAIL_MODEL") or DEFAULT_MODEL, key, headers)

@@ -7,10 +7,9 @@
 
 配置（环境变量，均可被显式参数覆盖）：
 - CAIL_API_KEY   必填；回退 DEEPSEEK_API_KEY / KSXC_AUTH_TOKEN
-- CAIL_BASE_URL  默认 https://api.deepseek.com
-- CAIL_MODEL     默认 deepseek-flash
-- CAIL_HEADERS   额外请求头 JSON，默认空（官方 DeepSeek 不需要）
-  （如改回 ksxc 网关，需设 {"ksyun-code-type":"ksxc-cli"}）
+- CAIL_BASE_URL  默认 https://kspmas.ksyun.com/v1（金山云星流）
+- CAIL_MODEL     默认 deepseek-v4.1-flash
+- CAIL_HEADERS   额外请求头 JSON，默认空（星流不需要）
 """
 from __future__ import annotations
 
@@ -21,8 +20,8 @@ import time
 
 import requests
 
-DEFAULT_BASE_URL = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-flash"
+DEFAULT_BASE_URL = "https://kspmas.ksyun.com/v1"
+DEFAULT_MODEL = "deepseek-v4.1-flash"
 DEFAULT_HEADERS: dict = {}
 
 
