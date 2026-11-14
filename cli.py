@@ -108,15 +108,16 @@ def cmd_agent(a):
               "以及 read_file / write_file / list_dir / run_shell。\n技能目录：\n"
               + cat.catalog_text() + "\n"
               "必须严格按以下步骤执行，禁止探索代码库或自行写脚本：\n"
+              "0) 先用 read_file 读取 skills/contract-review/SKILL.md 与 skills/mcp-eval/SKILL.md，加载两个技能；\n"
               "1) 调用 review_contract(contract, out)；\n"
               "2) 调用 load_review(contract, out) 得到入参 JSON；\n"
               "3) 用该 JSON 的四个字段调用 MCP 工具 score_review；\n"
               "4) 用简洁中文汇报交付文件路径与评测分数。")
     task = (f"审查合同：{a.contract}，输出目录：{a.out}。"
-            f"严格按系统消息的 1→2→3→4 步执行。")
+            f"严格按系统消息的 0→1→2→3→4 步执行。")
     with MCPClient(default_command(MCP_SERVER)) as mcp:
         mcp.initialize()
-        agent = Agent(client, Workspace(ROOT), mcp, max_steps=12, extra_tools=extra)
+        agent = Agent(client, Workspace(ROOT), mcp, max_steps=14, extra_tools=extra)
         out = agent.run(system, task)
     print(f"provider: {prov.redacted()}")
     print("最终答复：\n" + out["answer"])
