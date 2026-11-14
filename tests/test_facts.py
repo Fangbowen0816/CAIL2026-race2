@@ -44,3 +44,27 @@ def test_quantity_ratio_date_duration_code():
     assert {"quantity", "ratio", "duration", "date", "code"} <= kinds
     assert any(x.kind == "date" and x.value == "2025-03-15" for x in f)
     assert any(x.kind == "ratio" and x.number == 50 for x in f)
+
+# --- #10 鲁棒性：边界与反例 ---
+
+
+def test_money_with_thousands_separator_and_decimals():
+    f = _facts({1: "本合同总价款为：￥1,500,000.00元（大写：人民币壹佰伍拾万元整）。"})
+    assert any(x.kind == "money" and x.number == 1500000 for x in f)
+
+
+def test_iso_date_and_month_duration():
+    f = _facts({1: "服务期自2026-03-01起至2026-12-31止，共 12 个月。"})
+    assert any(x.kind == "date" and x.value == "2026-03-01" for x in f)
+    assert any(x.kind == "duration" and x.number == 12 for x in f)
+
+
+def test_no_false_money_without_unit():
+    f = _facts({1: "第1条 本合同共3份，双方各执一份。"})
+    assert [x for x in f if x.kind == "money"] == []
+
+
+def test_large_amount_wan_and_yi_units():
+    f = _facts({1: "总价3万元，保证金1.5亿元。"})
+    nums = {round(x.number) for x in f if x.kind == "money"}
+    assert 30000 in nums and 150000000 in nums
