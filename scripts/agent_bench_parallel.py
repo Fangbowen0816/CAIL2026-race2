@@ -18,6 +18,7 @@ sys.path.insert(0, ROOT)
 from agent.config import load_ksxc_provider, load_provider   # noqa: E402
 from agent.review import review_contract               # noqa: E402
 from cail_race2.contracts import load_contracts        # noqa: E402
+from cail_race2.ensemble import union_localizations, union_revisions  # noqa: E402
 from cail_race2.llm import LLMClient                   # noqa: E402
 from cail_race2.submission import make_zip, write_jsonl  # noqa: E402
 
@@ -36,6 +37,8 @@ def main() -> int:
     ap.add_argument("--provider", default="auto", choices=["auto", "ksxc", "starstream"],
                     help="出分端点：auto=读 .env/环境变量；ksxc/starstream 从 models.json 加载")
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--samples", type=int, default=1,
+                    help=">1 则每合同多轮取样并按原子取并集（抗非确定性）")
     a = ap.parse_args()
 
     contracts = load_contracts(a.contracts)
@@ -44,9 +47,21 @@ def main() -> int:
 
     def work(c):
         try:
-            client = LLMClient(base_url=prov.base_url, model=a.model or prov.model,
-                               headers=prov.headers, api_key=prov.api_key, json_mode=False)
-            review_contract(c, a.out, client, use_cache=not a.force)
+            loc_lists, rev_lists = [], []
+            for i in range(max(1, a.samples)):
+                d = a.out if a.samples <= 1 else os.path.join(a.out, f"sample{i}")
+                client = LLMClient(base_url=prov.base_url, model=a.model or prov.model,
+                                   headers=prov.headers, api_key=prov.api_key, json_mode=False)
+                res = review_contract(c, d, client, use_cache=not a.force)
+                loc_lists.append(res["localization"])
+                rev_lists.append(res["revision"])
+            if a.samples > 1:
+                merged = {"localization": union_localizations(loc_lists),
+                          "revision": union_revisions(rev_lists)}
+                os.makedirs(os.path.join(a.out, "predictions"), exist_ok=True)
+                with open(os.path.join(a.out, "predictions", f"{c.contract_id}.json"),
+                          "w", encoding="utf-8") as f:
+                    json.dump(merged, f, ensure_ascii=False)
             return c.contract_id, None
         except Exception as e:
             return c.contract_id, f"{type(e).__name__}: {e}"
