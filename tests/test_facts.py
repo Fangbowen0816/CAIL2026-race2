@@ -68,3 +68,9 @@ def test_large_amount_wan_and_yi_units():
     f = _facts({1: "总价3万元，保证金1.5亿元。"})
     nums = {round(x.number) for x in f if x.kind == "money"}
     assert 30000 in nums and 150000000 in nums
+
+
+def test_money_slot_synonyms_map_to_canonical():
+    f = _facts({1: "甲方应支付赔偿金5000元，另交押金800元。"})
+    slots = {x.slot for x in f if x.kind == "money"}
+    assert "违约金" in slots and "定金" in slots
