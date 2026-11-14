@@ -53,6 +53,9 @@ python cli.py webui --port 8800     # 打开 http://127.0.0.1:8800
 
 ## 4. 实测（2026-11-14）
 
+- **验收链** `cli.py accept`（C001）：MCP 评分 **97.86**
+  （Localization 95.71 / Revision 100；Loc_missing 100 / Rev_missing 100）——确定性算术修复生效
+  （「2200→2000」「1100→1000」精确命中）。
 - **验收链** `cli.py agent`：3 次工具调用完成
   `review_contract → load_review → score_review`，最终答复含 CAIL 口径评分与短板分析。
 - **MCP 评分**：`score_review` 对有 gold 的合同返回 CAIL 口径（Localization/Revision/Total）；
