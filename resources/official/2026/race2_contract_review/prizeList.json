@@ -1,0 +1,17 @@
+{
+  "resultcode": "0000",
+  "data": [
+    {
+      "number": "一",
+      "money": "15,000"
+    },
+    {
+      "number": "二",
+      "money": "7,500"
+    },
+    {
+      "number": "四",
+      "money": "5,000"
+    }
+  ]
+}

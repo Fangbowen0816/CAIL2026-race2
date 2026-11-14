@@ -1,0 +1,113 @@
+{
+  "service_code": 0,
+  "success": true,
+  "data": [
+    {
+      "index": "0",
+      "label": "初赛阶段",
+      "combined_score": true,
+      "proportion": 0.1,
+      "is_open": true,
+      "is_closed_beta": false,
+      "require_model": false,
+      "is_open_score": true,
+      "required_score": null,
+      "show_predict_detail": true,
+      "is_download": true,
+      "commit": {
+        "limit": 3,
+        "interval": "day",
+        "text": "今日",
+        "mode": "result",
+        "url": "/api/upload_predict",
+        "queue_name": "cail-evaluate-znhtsc"
+      },
+      "name": "first"
+    },
+    {
+      "index": "1",
+      "label": "复赛阶段",
+      "combined_score": true,
+      "proportion": 0.3,
+      "is_open": false,
+      "is_closed_beta": false,
+      "require_model": false,
+      "is_open_score": true,
+      "required_score": 25.09,
+      "show_predict_detail": true,
+      "is_download": true,
+      "commit": {
+        "limit": 3,
+        "interval": "day",
+        "text": "今日",
+        "mode": "result",
+        "url": "/api/upload_predict",
+        "queue_name": "cail-evaluate-znhtsc"
+      },
+      "name": "second"
+    },
+    {
+      "index": "2",
+      "label": "封测阶段",
+      "combined_score": true,
+      "proportion": 0.6,
+      "is_open": false,
+      "is_closed_beta": true,
+      "require_model": false,
+      "is_open_score": true,
+      "required_score": null,
+      "show_predict_detail": true,
+      "is_download": false,
+      "score_name": [
+        "Total",
+        "Localization",
+        "Revision",
+        "Loc_typo",
+        "Loc_inconsistency",
+        "Loc_missing",
+        "Rev_typo",
+        "Rev_inconsistency",
+        "Rev_missing",
+        "API_success_rate"
+      ],
+      "score_label": [
+        "总分",
+        "定位分",
+        "修改分",
+        "错别字-定位",
+        "不一致-定位",
+        "要素缺失-定位",
+        "错别字-修改",
+        "不一致-修改",
+        "要素缺失-修改",
+        "API成功率"
+      ],
+      "remote": false,
+      "api_config_desc": "封测阶段上传 zip，zip 内为一个 json 文件：{\"api_key\": \"https://your-host/review\", \"headers\": {\"Authorization\": \"Bearer <token>\"}}，headers 可选；平台逐份合同 POST {contract_id, context}，期望返回 {contract_id, localization: [...], revisions: [...]}（两数组的元素分别与两份提交 JSONL 的行一致）",
+      "commit": {
+        "limit": 3,
+        "interval": "all",
+        "text": "整个阶段",
+        "mode": "result",
+        "url": "/api/upload_predict",
+        "queue_name": "cail-evaluate-znhtsc"
+      },
+      "name": "third"
+    },
+    {
+      "index": "all",
+      "label": "总榜",
+      "is_open": false,
+      "is_closed_beta": false,
+      "require_model": false,
+      "is_open_score": true,
+      "required_score": null,
+      "show_predict_detail": false,
+      "is_download": false,
+      "combined_score_desc": "最终成绩 = 初赛阶段成绩 * 0.1 + 复赛阶段成绩 * 0.3 + 封测阶段成绩 * 0.6",
+      "commit": {},
+      "name": "all"
+    }
+  ],
+  "message": "成功"
+}

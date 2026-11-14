@@ -1,0 +1,29 @@
+{
+  "service_code": 0,
+  "success": true,
+  "data": [
+    {
+      "index": "0",
+      "label": "初赛阶段",
+      "combined_score": true,
+      "proportion": 0.1,
+      "is_open": true,
+      "is_closed_beta": false,
+      "require_model": false,
+      "is_open_score": true,
+      "required_score": null,
+      "show_predict_detail": true,
+      "is_download": true,
+      "commit": {
+        "limit": 3,
+        "interval": "day",
+        "text": "今日",
+        "mode": "result",
+        "url": "/api/upload_predict",
+        "queue_name": "cail-evaluate-znhtsc"
+      },
+      "name": "first"
+    }
+  ],
+  "message": "成功"
+}
