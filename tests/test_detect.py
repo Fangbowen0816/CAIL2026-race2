@@ -40,3 +40,13 @@ def test_merge_deterministic_adds_strong_missing_and_drops_sentinel():
 def test_merge_deterministic_no_duplicate_for_covered_pid():
     locs = [LocalizationRecord("C1", [[1, 1]], "missing_element")]
     assert len(merge_deterministic(locs, "C1", {1: "另行协商。"})) == 1
+
+
+def test_merge_adds_all_inconsistency_sides():
+    paras = {1: "甲方：华辰科技有限公司；乙方：远山办公设备有限公司。",
+             3: "乙方北辰办公设备有限公司应在验收完成后开具发票。"}
+    locs = [LocalizationRecord("C1", [[3, 3]], "inconsistency")]  # 只报了一侧
+    merged = merge_deterministic(locs, "C1", paras)
+    atoms = {(r.error_type, p) for r in merged
+             for s, e in (r.location or []) for p in range(s, e + 1)}
+    assert ("inconsistency", 1) in atoms and ("inconsistency", 3) in atoms
