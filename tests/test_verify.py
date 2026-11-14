@@ -60,8 +60,9 @@ def test_placeholder_xx_detected():
 
 
 def test_placeholder_underscore_detected():
-    cs = [c for c in _verify({2: "交付地点：＿＿＿＿。"}) if c.kind == "missing"]
-    assert cs and cs[0].pids == [2]
+    # 脱敏/排版下划线不得误判为缺失（数据集用 XX 脱敏、下划线排版）
+    assert [c for c in _verify({2: "乙方：北京XX体育文化传播有限公司。"}) if c.kind == "missing"] == []
+    assert [c for c in _verify({2: "签订地点：_武汉市江汉区___。"}) if c.kind == "missing"] == []
 
 
 def test_empty_field_label_detected():

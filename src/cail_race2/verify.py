@@ -37,8 +37,10 @@ _STRONG_MISSING = ("另行协商", "另行约定", "另行确定", "另行签订
 _EMPTY_FIELD_RE = re.compile(
     r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款|账户|开户行|税号)"
     r"\s*[:：]\s*(?=[，。；\n]|$)")
-# 占位符未填（高精度缺失信号）
-_PLACEHOLDER_RE = re.compile(r"(?:XX|xx|××|_{2,}|【\s*】)")
+# 占位符未填（高精度）：只用日期占位。
+# 数据集用 XX 做**脱敏**（如「北京XX体育文化传播有限公司」），下划线也常用于排版，
+# 均不得当作缺失；仅识别「XX年XX月」这类待填日期。
+_PLACEHOLDER_RE = re.compile(r"(?:【\s*】|XX\s*年\s*XX\s*月)")
 
 
 def find_conflicts(facts: list[Fact]) -> list[Conflict]:
