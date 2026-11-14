@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 sys.path.insert(0, ROOT)
 
-from agent.config import load_ksxc_provider            # noqa: E402
+from agent.config import load_ksxc_provider, load_provider   # noqa: E402
 from agent.review import review_contract               # noqa: E402
 from cail_race2.contracts import load_contracts        # noqa: E402
 from cail_race2.llm import LLMClient                   # noqa: E402
@@ -33,11 +33,13 @@ def main() -> int:
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "agent_bench"))
     ap.add_argument("--workers", type=int, default=4)
     ap.add_argument("--model", default=None)
+    ap.add_argument("--provider", default="auto", choices=["auto", "ksxc", "starstream"],
+                    help="出分端点：auto=读 .env/环境变量；ksxc/starstream 从 models.json 加载")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
 
     contracts = load_contracts(a.contracts)
-    prov = load_ksxc_provider()
+    prov = load_ksxc_provider() if a.provider == "auto" else load_provider(a.provider)
     print("provider:", prov.redacted(), "| workers:", a.workers, flush=True)
 
     def work(c):
