@@ -20,7 +20,8 @@ class FakeSession:
         self.calls = []
 
     def post(self, url, json=None, headers=None, timeout=None):
-        self.calls.append((url, json, headers))
+        self.calls.append((url, dict(json) if json else json,
+                           dict(headers) if headers else headers))
         return self.responses.pop(0)
 
 
@@ -34,6 +35,22 @@ def test_extract_json_handles_fence_and_noise():
 def test_extract_json_raises_on_garbage():
     with pytest.raises(LLMError):
         extract_json("no json here")
+
+
+def test_extract_json_strips_reasoning_block():
+    assert extract_json("<think>abc</think>{\"a\": 1}") == {"a": 1}
+    assert extract_json("<thinking>x</thinking>{\"a\": 1}") == {"a": 1}
+
+
+def test_chat_retries_with_temperature_one_on_400():
+    sess = FakeSession([
+        FakeResponse(400, text='{"error":{"message":"invalid temperature: only 1 is allowed for this model"}}'),
+        FakeResponse(200, {"choices": [{"message": {"content": "{}"}}]}),
+    ])
+    c = LLMClient(api_key="sk-x", session=sess)
+    assert c.chat([{"role": "user", "content": "hi"}], temperature=0.0) == "{}"
+    assert sess.calls[0][1]["temperature"] == 0.0
+    assert sess.calls[1][1]["temperature"] == 1.0
 
 
 def test_repr_does_not_leak_api_key():

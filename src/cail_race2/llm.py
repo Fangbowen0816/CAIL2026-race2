@@ -30,13 +30,14 @@ class LLMError(RuntimeError):
 
 
 _FENCE = re.compile(r"```(?:json)?\s*(.*?)```", re.S)
+_REASONING = re.compile(r"<(think|thinking)>.*?</\1>", re.S | re.I)
 
 
 def extract_json(text: str):
-    """从模型输出里提取 JSON（容忍 ```json 代码块与前后噪声）。"""
+    """从模型输出里提取 JSON（容忍 ```json 代码块、前后噪声与 <think> 思考块）。"""
     if text is None or not text.strip():
         raise LLMError("空响应")
-    t = text.strip()
+    t = _REASONING.sub("", text).strip()
     m = _FENCE.search(t)
     if m:
         t = m.group(1).strip()
@@ -108,6 +109,10 @@ class LLMClient:
             except requests.RequestException as e:
                 last = LLMError(f"网络错误: {type(e).__name__}")
                 time.sleep(2 ** attempt)
+                continue
+            if r.status_code == 400 and "temperature" in r.text \
+                    and payload.get("temperature") not in (1, 1.0):
+                payload["temperature"] = 1.0   # 部分模型仅接受 temperature=1
                 continue
             if r.status_code in (429, 500, 502, 503, 504):
                 last = LLMError(f"HTTP {r.status_code}（可重试）")
