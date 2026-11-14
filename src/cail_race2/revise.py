@@ -7,8 +7,36 @@ import json
 from collections import defaultdict
 
 from .contracts import Contract
+from .evaluate import edit_similarity
 from .prompts import revise_messages
 from .records import (ERROR_TYPE_SET, LocalizationRecord, RevisionRecord)
+
+# typo-only 修订的最小改动阈值：相似度低于此判为“大幅改写”，抑制为原文（避免字级 FP）
+_TYPO_MIN_SIM = 0.6
+
+
+def guard_typo_edit(error_types, orig: str, ans: str) -> str:
+    """#5：typo-only 的修订若为大幅改写，则回退为原文。
+    理由：字级 F0.5（beta=0.5）对**误改（FP）**惩罚重于漏改（FN）。"""
+    if list(error_types or []) != ["typo"]:
+        return ans
+    if not orig or not ans:
+        return ans
+    return orig if edit_similarity(ans, orig) < _TYPO_MIN_SIM else ans
+
+
+def guard_revisions(contract_id: str, paragraphs: dict[int, str],
+                    revs: list[RevisionRecord]) -> list[RevisionRecord]:
+    out: list[RevisionRecord] = []
+    for r in revs:
+        loc = r.location or []
+        if len(loc) == 1 and loc[0][0] == loc[0][1] and r.correct_answer is not None:
+            orig = r.original_text or paragraphs.get(loc[0][0], "")
+            out.append(RevisionRecord(contract_id, r.location, r.error_types, orig,
+                                      guard_typo_edit(r.error_types, orig, r.correct_answer)))
+        else:
+            out.append(r)
+    return out
 
 
 def revise(contract_id: str, context: str, paragraphs: dict[int, str],
