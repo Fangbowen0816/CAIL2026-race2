@@ -105,6 +105,10 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
 
 
 _SLOT_TRIGGERS = ("交付", "交货", "付款", "支付", "验收", "结算", "完成")
+# 相对时间引用：出现则**不算**缺失（如「验收完成后」「生效后10日」）
+_REL_TIME_RE = re.compile(
+    r"(?:验收|完成|生效|签署|签订|交货|交付|收到|送达|付款|支付|结算)(?:之日)?(?:后|前|内|起)"
+    r"|之(?:日)?(?:后|前|起)|起\s*\d|后\s*\d|内\s*(?:完成|支付|交付|付清)")
 
 
 def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict]:
@@ -118,6 +122,8 @@ def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict
         if not any(t in text for t in _SLOT_TRIGGERS):
             continue
         if any(f.kind in ("date", "duration") for f in by_pid.get(pid, [])):
+            continue
+        if _REL_TIME_RE.search(text):
             continue
         if any(m in text for m in _STRONG_MISSING):
             continue

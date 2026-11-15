@@ -72,3 +72,18 @@ def test_empty_field_label_detected():
 
 def test_clean_obligation_not_missing():
     assert [c for c in _verify({1: "乙方应在30日内支付合同价款。"}) if c.kind == "missing"] == []
+
+
+def test_relative_time_clause_not_gap():
+    from cail_race2.verify import find_slot_gap_candidates
+    paras = {3: "乙方远山办公设备有限公司应在验收完成后开具发票。",
+             7: "双方应在验收完成后签署交接单。",
+             6: "甲方在验收完成后5日内支付合同总价的50%。"}
+    assert find_slot_gap_candidates(paras, extract_facts(paras)) == []
+
+
+def test_delivery_without_time_is_gap():
+    from cail_race2.verify import find_slot_gap_candidates
+    paras = {4: "乙方负责交付全部货物。"}
+    gaps = find_slot_gap_candidates(paras, extract_facts(paras))
+    assert gaps and gaps[0].pids == [4]
