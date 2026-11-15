@@ -87,3 +87,14 @@ def test_delivery_without_time_is_gap():
     paras = {4: "乙方负责交付全部货物。"}
     gaps = find_slot_gap_candidates(paras, extract_facts(paras))
     assert gaps and gaps[0].pids == [4]
+
+
+def test_stance_clue_detected():
+    from cail_race2.verify import find_stance_candidates
+    cs = find_stance_candidates({3: "甲方应在货物交付前付清全部价款，乙方无需提供相应履约保障。"})
+    assert cs and cs[0].pids == [3]
+
+
+def test_stance_clue_clean_not_flagged():
+    from cail_race2.verify import find_stance_candidates
+    assert find_stance_candidates({1: "双方应在验收完成后签署交接单。"}) == []

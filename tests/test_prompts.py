@@ -8,5 +8,9 @@ def test_locate_prompt_requires_typo_precision():
     assert "专有名词" in _LOCATE_SYS and "脱敏" in _LOCATE_SYS
 
 
+def test_locate_prompt_covers_stance():
+    assert "stance" in _LOCATE_SYS and "显失公平" in _LOCATE_SYS
+
+
 def test_revise_prompt_requires_minimal_typo_edit():
     assert "只改错字" in _REVISE_SYS

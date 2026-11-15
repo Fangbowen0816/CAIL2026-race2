@@ -105,6 +105,22 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
 
 
 _SLOT_TRIGGERS = ("交付", "交货", "付款", "支付", "验收", "结算", "完成")
+# 立场失衡（stance）线索词：仅作提示，需 LLM 复核“是否确实失衡”
+_STANCE_MARKERS = (
+    "单方", "无需提供", "无需承担", "概不", "免除任", "免除.{0,8}责任", "无限期", "无条件",
+    "自行承担", "自担", "不承担", "拒绝履行", "拒绝赔偿", "视为放弃", "不得异议", "逾期不予",
+)
+
+
+def find_stance_candidates(paragraphs: dict[int, str]) -> list[Conflict]:
+    """扫描“失衡措辞”段落，作为 stance 的**线索**（不强制并入定位）。"""
+    out: list[Conflict] = []
+    for pid in sorted(paragraphs):
+        text = paragraphs[pid]
+        hits = [m for m in _STANCE_MARKERS if re.search(m, text)]
+        if hits:
+            out.append(Conflict("stance", [pid], "失衡措辞: " + "、".join(hits)))
+    return out
 # 相对时间引用：出现则**不算**缺失（如「验收完成后」「生效后10日」）
 _REL_TIME_RE = re.compile(
     r"(?:验收|完成|生效|签署|签订|交货|交付|收到|送达|付款|支付|结算)(?:之日)?(?:后|前|内|起)"

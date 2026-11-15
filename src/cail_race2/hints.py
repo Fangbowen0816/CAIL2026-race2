@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from .facts import Fact
-from .verify import Conflict, find_slot_gap_candidates
+from .verify import Conflict, find_slot_gap_candidates, find_stance_candidates
 
 
 def build_hints(paragraphs: dict[int, str], facts: list[Fact],
@@ -38,6 +38,12 @@ def build_hints(paragraphs: dict[int, str], facts: list[Fact],
         lines.append("疑似要素缺失（交付/付款类条款段内未见时间，重点核对）：")
         for c in gaps[:10]:
             lines.append(f"- p{c.pids}: {c.detail}")
+
+    stance = find_stance_candidates(paragraphs)
+    if stance:
+        lines.append("疑似立场失衡（仅提示，需判断是否确实显失公平）：")
+        for c in stance[:10]:
+            lines.append(f"- p{c.pids[0]}: {c.detail}")
 
     if not lines:
         return ""
