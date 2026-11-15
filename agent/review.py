@@ -15,6 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
 from cail_race2.contracts import Contract, load_contracts, parse_paragraphs  # noqa: E402
+from cail_race2.critique import critique  # noqa: E402
 from cail_race2.pipeline import _cache_path, _load_cache, _save_cache  # noqa: E402
 from cail_race2.stage import run_stages  # noqa: E402
 from cail_race2.stages import (FactsStage, LLMDetectStage, LLMReviseStage,  # noqa: E402
@@ -103,6 +104,11 @@ def _report_md(contract: Contract, state, locs, revs) -> str:
     for r in locs:
         if r.location:
             out.append(f"- {r.error_type} @ p{r.location}")
+    issues = critique(contract.contract_id, contract.paragraphs, locs, revs)
+    out.append("")
+    out.append(f"## 自检（#17）\n- 不变量核查：{'通过' if not issues else '发现 ' + str(len(issues)) + ' 项'}")
+    for i in issues:
+        out.append(f"- [{i.kind}] p{i.pid}: {i.detail}")
     return "\n".join(out) + "\n"
 
 
