@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-ERROR_TYPES = ("typo", "inconsistency", "missing_element")
+ERROR_TYPES = ("typo", "inconsistency", "missing_element", "stance")
 ERROR_TYPE_SET = frozenset(ERROR_TYPES)
 
 

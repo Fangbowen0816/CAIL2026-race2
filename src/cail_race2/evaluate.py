@@ -25,8 +25,9 @@ from collections import Counter
 
 from .records import ERROR_TYPES
 
-LOC_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0}
-REV_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0}
+# 复赛新增 `stance`（立场失衡）；官方权重未公布，暂用**占位值 30**（待口径更新）
+LOC_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0, "stance": 30.0}
+REV_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0, "stance": 30.0}
 
 
 # --------------------------------------------------------------------------- 定位
@@ -157,7 +158,7 @@ def revision_score(contracts: dict, gold_records, pred_records) -> dict:
 
     pfinal = final_map(pred_records)
     typo_agg = Counter()
-    inc, miss = [], []
+    inc, miss, stanc = [], [], []
     n_typo = 0
     for r in gold_records:
         loc = r.get("location") or []
@@ -178,15 +179,22 @@ def revision_score(contracts: dict, gold_records, pred_records) -> dict:
                 inc.append(1.0 if predtext in _accepted(r) else 0.0)
             elif t == "missing_element":
                 miss.append(_progress(orig, predtext, goldtext))
+            elif t == "stance":
+                # 立场失衡修订：占位口径与缺失一致（编辑距离完成度），待官方口径
+                stanc.append(_progress(orig, predtext, goldtext))
     tp, fp, fn = typo_agg["tp"], typo_agg["fp"], typo_agg["fn"]
     pp = tp / (tp + fp) if (tp + fp) else 0.0
     rr = tp / (tp + fn) if (tp + fn) else 0.0
     T = 100 * f_beta(pp, rr, 0.5)
     C = 100 * _mean(inc)
     M = 100 * _mean(miss)
-    return {"T": T, "C": C, "M": M, "R": 0.10 * T + 0.30 * C + 0.60 * M,
+    S = 100 * _mean(stanc)
+    metric = {"typo": T, "inconsistency": C, "missing_element": M, "stance": S}
+    R = sum(REV_WEIGHT[t] / 100.0 * metric[t] for t in ERROR_TYPES)
+    return {"T": T, "C": C, "M": M, "S": S, "R": R,
             "typo_tp": tp, "typo_fp": fp, "typo_fn": fn,
-            "n": {"typo": n_typo, "inconsistency": len(inc), "missing_element": len(miss)}}
+            "n": {"typo": n_typo, "inconsistency": len(inc),
+                  "missing_element": len(miss), "stance": len(stanc)}}
 
 
 def total_score(L: float, R: float) -> float:
@@ -205,7 +213,9 @@ def official_report(contracts: dict, gold: dict, pred: dict) -> dict:
         "Loc_typo": loc["typo"]["f1"] * 100,
         "Loc_inconsistency": loc["inconsistency"]["f1"] * 100,
         "Loc_missing": loc["missing_element"]["f1"] * 100,
+        "Loc_stance": loc["stance"]["f1"] * 100,
         "Rev_typo": rev["T"], "Rev_inconsistency": rev["C"], "Rev_missing": rev["M"],
+        "Rev_stance": rev["S"],
         "Typo_TP": rev["typo_tp"], "Typo_FP": rev["typo_fp"], "Typo_FN": rev["typo_fn"],
         "loc_detail": loc, "rev_detail": rev,
     }

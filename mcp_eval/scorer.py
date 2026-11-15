@@ -24,8 +24,8 @@ from cail_race2.revise import apply_revisions                          # noqa: E
 from cail_race2.verify import verify                                   # noqa: E402
 
 PLATFORM_FIELDS = ("Total", "Localization", "Revision",
-                   "Loc_typo", "Loc_inconsistency", "Loc_missing",
-                   "Rev_typo", "Rev_inconsistency", "Rev_missing",
+                   "Loc_typo", "Loc_inconsistency", "Loc_missing", "Loc_stance",
+                   "Rev_typo", "Rev_inconsistency", "Rev_missing", "Rev_stance",
                    "Typo_TP", "Typo_FP", "Typo_FN")
 
 

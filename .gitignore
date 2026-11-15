@@ -17,3 +17,6 @@ outputs/
 
 # 打包产物（任务包 zip 等）不入库
 dist/
+
+# 复赛/封测数据（竞赛保密，不入公开仓库）
+resources/datasets/race2_semifinal/
