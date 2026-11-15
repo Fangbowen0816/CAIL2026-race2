@@ -16,7 +16,14 @@ import re
 from dataclasses import dataclass
 
 PARTY_LABELS = (r"甲方|乙方|丙方|丁方|委托人|受托人|发包人|承包人|买方|卖方|"
-                r"出租人|承租人|出卖人|买受人|供应商|采购人|服务方|客户|借款人|贷款人")
+                r"出租人|承租人|出卖人|买受人|供应商|采购人|服务方|客户|借款人|贷款人|"
+                r"供方|需方|出租方|承租方|受托方|委托方|购买方|供货方|收货方|收货人|购买人|托管方|保管方")
+# 标签内的空格（「甲 方」「乙 方」）先归一再抽取
+_LABEL_SPACE_RE = re.compile(r"([甲乙丙丁供需])\s+(方)")
+
+
+def _norm_labels(t: str) -> str:
+    return _LABEL_SPACE_RE.sub(r"\1\2", t or "")
 _COMPANY_SUFFIX = (r"有限公司|有限责任公司|股份有限公司|公司|集团|中心|学院|大学|"
                    r"研究院|研究所|事务所|委员会|管理局|医院|学校")
 # 当事人提及里不应出现的动词/虚词（多字符，避免误伤「华为」等含单字的名称）
@@ -30,6 +37,8 @@ PARTY_DEF_RE = re.compile(
     rf"(?P<name>[^，。；;、：:\n（）()\s]{{2,40}})")
 PARTY_MENTION_RE = re.compile(
     rf"(?P<label>{PARTY_LABELS})(?P<name>[\u4e00-\u9fffA-Za-z0-9]{{2,30}}?(?:{_COMPANY_SUFFIX}))")
+# 无标签机构名（兜底，kind=org）
+ORG_RE = re.compile(rf"(?P<name>[\u4e00-\u9fff]{{2,20}}(?:{_COMPANY_SUFFIX}))")
 
 MONEY_RE = re.compile(r"(?P<num>[0-9][0-9,，]*(?:\.[0-9]+)?)\s*(?P<unit>亿元|万元|元)")
 QTY_RE = re.compile(r"(?P<num>[0-9]+(?:\.[0-9]+)?)\s*"
@@ -97,15 +106,23 @@ def extract_facts(paragraphs: dict[int, str]) -> list[Fact]:
 
     for pid in sorted(paragraphs):
         text = paragraphs[pid]
+        ptext = _norm_labels(text)   # #22：标签内空格归一（「甲 方」→「甲方」）
 
-        for m in PARTY_DEF_RE.finditer(text):
+        for m in PARTY_DEF_RE.finditer(ptext):
             slot = m.group("paren") or m.group("label")
             add("party", m.group("name"), pid, slot)
-        for m in PARTY_MENTION_RE.finditer(text):
+        for m in PARTY_MENTION_RE.finditer(ptext):
             name = m.group("name")
             if name[0] in _MENTION_START_BLOCK or any(b in name for b in _MENTION_BLOCK):
                 continue
             add("party", name, pid, m.group("label"))
+        # #24 机构名兜底：无标签但含公司后缀的 token → org（仅作候选，不直接当冲突）
+        party_names = {f.value for f in facts if f.kind == "party"}
+        for m in ORG_RE.finditer(ptext):
+            nm = m.group("name")
+            if any(nm in p or p in nm for p in party_names):
+                continue
+            add("org", nm, pid, "机构")
 
         for m in CODE_RE.finditer(text):
             add("code", m.group(1), pid, "编号")

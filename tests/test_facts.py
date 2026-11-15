@@ -18,6 +18,31 @@ def test_party_definition_with_parenthetical_uses_paren_slot():
     assert any(x.kind == "party" and x.slot == "甲方" and x.value == "国家体育总局" for x in f)
 
 
+def test_party_label_with_spaces_is_normalized():
+    f = _facts({1: "甲 方：xx品牌营销有限公司\n乙 方：XX创意策划有限公司"})
+    parties = {(x.slot, x.value) for x in f if x.kind == "party"}
+    assert ("甲方", "xx品牌营销有限公司") in parties
+    assert ("乙方", "XX创意策划有限公司") in parties
+
+
+def test_party_label_variants_extended():
+    f = _facts({1: "受托方（乙方）：山东某某信息科技有限公司"})
+    assert any(x.kind == "party" and x.value.startswith("山东") for x in f)
+    f2 = _facts({1: "供方：远山办公设备有限公司；需方：华辰科技有限公司"})
+    assert any(x.kind == "party" and x.value.startswith("远山") for x in f2)
+
+
+def test_org_fallback_for_unlabeled_company():
+    f = _facts({1: "开户名称：北京某体育文化传播有限公司"})
+    assert any(x.kind == "org" and "体育文化传播" in x.value for x in f)
+
+
+def test_org_not_duplicated_when_labeled_party():
+    f = _facts({1: "乙方：远山办公设备有限公司"})
+    assert any(x.kind == "party" for x in f)
+    assert not any(x.kind == "org" and "远山" in x.value for x in f)
+
+
 def test_party_mention_in_body_is_extracted():
     f = _facts({3: "乙方北辰办公设备有限公司应在验收完城后开具发票。"})
     assert any(x.kind == "party" and x.slot == "乙方" and "北辰" in x.value for x in f)
