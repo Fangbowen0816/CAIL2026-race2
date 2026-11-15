@@ -24,6 +24,7 @@ from cail_race2.evaluate import official_report            # noqa: E402
 from cail_race2.llm import LLMClient                       # noqa: E402
 
 SAMPLE = os.path.join(ROOT, "resources", "datasets", "race2_contract_review", "提交示例")
+SEMIFINAL = os.path.join(ROOT, "resources", "datasets", "race2_semifinal", "data", "提交示例")
 DEFAULT_SPECS = [
     "ksxc:deepseek-v4.1-flash", "ksxc:glm-5.3", "ksxc:kimi-k3", "ksxc:mimo-v2.5-pro",
     "starstream:deepseek-v4.1-flash", "starstream:qwen3.8-max", "starstream:glm-5.3",
@@ -66,8 +67,16 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--specs", nargs="*", default=DEFAULT_SPECS)
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "sweep"))
+    ap.add_argument("--sample-dir", default=None, help="gold 示例目录（默认初赛）")
+    ap.add_argument("--semifinal", action="store_true", help="用复赛 5 份 gold")
     ap.add_argument("--repeat", type=int, default=1, help="每个模型重复次数，取均值（抗方差）")
     a = ap.parse_args()
+
+    global SAMPLE
+    if a.sample_dir:
+        SAMPLE = a.sample_dir
+    elif a.semifinal:
+        SAMPLE = SEMIFINAL
 
     from cail_race2.env import load_dotenv
     load_dotenv(os.path.join(ROOT, ".env"))

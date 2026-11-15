@@ -19,6 +19,7 @@ from cail_race2.contracts import load_contracts           # noqa: E402
 from cail_race2.evaluate import official_report            # noqa: E402
 
 SAMPLE = os.path.join(ROOT, "resources", "datasets", "race2_contract_review", "提交示例")
+SEMIFINAL = os.path.join(ROOT, "resources", "datasets", "race2_semifinal", "data", "提交示例")
 
 
 def _read_jsonl(path):
@@ -43,10 +44,14 @@ def evaluate(pred_dir: str | None = None, sample_dir: str = SAMPLE) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pred-dir", default=None)
+    ap.add_argument("--sample-dir", default=None, help="gold 示例目录（默认初赛）")
+    ap.add_argument("--semifinal", action="store_true", help="用复赛 5 份 gold")
     a = ap.parse_args()
-    rep = evaluate(a.pred_dir)
+    sample_dir = a.sample_dir or (SEMIFINAL if a.semifinal else SAMPLE)
+    rep = evaluate(a.pred_dir, sample_dir)
     keys = ("Total", "Localization", "Revision", "Loc_typo", "Loc_inconsistency", "Loc_missing",
-            "Rev_typo", "Rev_inconsistency", "Rev_missing", "Typo_TP", "Typo_FP", "Typo_FN")
+            "Loc_stance", "Rev_typo", "Rev_inconsistency", "Rev_missing", "Rev_stance",
+            "Typo_TP", "Typo_FP", "Typo_FN")
     print(json.dumps({k: round(rep[k], 4) for k in keys}, ensure_ascii=False, indent=2))
     return 0
 
