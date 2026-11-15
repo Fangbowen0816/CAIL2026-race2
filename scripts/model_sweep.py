@@ -40,26 +40,33 @@ def _gold():
             open(os.path.join(SAMPLE, "revision_predictions.jsonl"), encoding="utf-8") if l.strip()]}
 
 
-def run_one(spec: str, out_root: str, contracts) -> dict:
+def run_one(spec: str, out_root: str, contracts, repeat: int = 1) -> dict:
     prov_name, model_id = spec.split(":", 1)
     prov = load_provider(prov_name)
-    client = LLMClient(base_url=prov.base_url, model=model_id, headers=prov.headers,
-                       api_key=prov.api_key, json_mode=False)
-    loc_rows, rev_rows = [], []
-    for c in contracts:
-        d = os.path.join(out_root, f"{prov_name}__{model_id}", c.contract_id)
-        res = review_contract(c, d, client, use_cache=False)
-        loc_rows += res["localization"]
-        rev_rows += res["revision"]
     cmap = {c.contract_id: c for c in contracts}
-    rep = official_report(cmap, _gold(), {"localization": loc_rows, "revision": rev_rows})
-    return {"spec": spec, "rep": rep}
+    gold = _gold()
+    reps = []
+    for i in range(max(1, repeat)):
+        client = LLMClient(base_url=prov.base_url, model=model_id, headers=prov.headers,
+                           api_key=prov.api_key, json_mode=False)
+        loc_rows, rev_rows = [], []
+        for c in contracts:
+            d = os.path.join(out_root, f"{prov_name}__{model_id}", f"r{i}", c.contract_id)
+            res = review_contract(c, d, client, use_cache=False)
+            loc_rows += res["localization"]
+            rev_rows += res["revision"]
+        reps.append(official_report(cmap, gold, {"localization": loc_rows, "revision": rev_rows}))
+    mean = {k: sum(r[k] for r in reps) / len(reps) for k in
+            ("Total", "Localization", "Revision", "Loc_typo", "Loc_inconsistency", "Loc_missing",
+             "Rev_typo", "Rev_inconsistency", "Rev_missing")}
+    return {"spec": spec, "rep": mean, "runs": [round(r["Total"], 2) for r in reps]}
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--specs", nargs="*", default=DEFAULT_SPECS)
     ap.add_argument("--out", default=os.path.join(ROOT, "outputs", "sweep"))
+    ap.add_argument("--repeat", type=int, default=1, help="每个模型重复次数，取均值（抗方差）")
     a = ap.parse_args()
 
     from cail_race2.env import load_dotenv
@@ -68,13 +75,13 @@ def main() -> int:
 
     results, failures = [], []
     with ThreadPoolExecutor(max_workers=len(a.specs)) as ex:
-        futs = {ex.submit(run_one, s, a.out, contracts): s for s in a.specs}
+        futs = {ex.submit(run_one, s, a.out, contracts, a.repeat): s for s in a.specs}
         for f in as_completed(futs):
             s = futs[f]
             try:
                 r = f.result()
                 results.append(r)
-                print(f"done {s}: Total={r['rep']['Total']:.4f}", flush=True)
+                print(f"done {s}: 均值Total={r['rep']['Total']:.4f} runs={r['runs']}", flush=True)
             except Exception as e:
                 failures.append((s, f"{type(e).__name__}: {e}"))
                 print(f"FAIL {s}: {type(e).__name__}: {e}", flush=True)
