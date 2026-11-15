@@ -16,20 +16,40 @@ from .records import LocalizationRecord, RevisionRecord
 CANON = {
     "delivery_time": "在本合同生效后10个工作日内",
     "payment_time": "在验收完成后10个工作日内",
+    "acceptance_time": "在本合同生效后10个工作日内",
+    "service_time": "在本合同生效后10个工作日内",
 }
 _PAYMENT_VERBS = ("支付", "付款", "付清", "付讫", "汇付", "结算")
 _DELIVERY_VERBS = ("交付", "交货", "送至", "送达", "发货", "运输", "配送")
+_ACCEPTANCE_VERBS = ("验收", "检验", "检查")
+_SERVICE_VERBS = ("提供", "完成", "履行", "承担", "开具", "提交")
 _MODALS = ("负责", "应当", "须", "需", "应于", "将于", "应")
 _TIME_RE = re.compile(r"\d+\s*(?:个工作日|工作日|日|天|个月|月|年)")
+# 相对时间引用：出现则认为“已有时间”，不补（防误补）
+_REL_TIME_RE = re.compile(
+    r"(?:验收|完成|生效|签署|签订|交货|交付|收到|送达|付款|支付|结算)(?:之日)?(?:后|前|内|起)"
+    r"|之(?:日)?(?:后|前|起)")
 
 
 def classify_missing(text: str) -> str | None:
-    """按条款动词判断缺失要素类型（付款优先于交付）。"""
+    """按条款动词判断缺失要素类型（付款优先于交付，再验收/服务）。"""
     if any(v in text for v in _PAYMENT_VERBS):
         return "payment_time"
     if any(v in text for v in _DELIVERY_VERBS):
         return "delivery_time"
+    if any(v in text for v in _ACCEPTANCE_VERBS):
+        return "acceptance_time"
+    if any(v in text for v in _SERVICE_VERBS):
+        return "service_time"
     return None
+
+
+_VERBS_BY_KIND = {
+    "payment_time": _PAYMENT_VERBS,
+    "delivery_time": _DELIVERY_VERBS,
+    "acceptance_time": _ACCEPTANCE_VERBS,
+    "service_time": _SERVICE_VERBS,
+}
 
 
 def _insert_before_verb(text: str, phrase: str, verbs) -> str | None:
@@ -55,12 +75,12 @@ def _insert_before_verb(text: str, phrase: str, verbs) -> str | None:
 
 def missing_fill(text: str) -> tuple[str, str] | None:
     """返回 (类型, 补写后文本)；无可确定性补写时返回 None。"""
-    if not text or _TIME_RE.search(text):
+    if not text or _TIME_RE.search(text) or _REL_TIME_RE.search(text):
         return None
     kind = classify_missing(text)
     if not kind:
         return None
-    verbs = _PAYMENT_VERBS if kind == "payment_time" else _DELIVERY_VERBS
+    verbs = _VERBS_BY_KIND[kind]
     new = _insert_before_verb(text, CANON[kind], verbs)
     if not new or new == text:
         return None
