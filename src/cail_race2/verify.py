@@ -109,6 +109,8 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
 
 
 _SLOT_TRIGGERS = ("交付", "交货", "付款", "支付", "验收", "结算", "完成")
+# 标题/条款名（用于空缺检测排除标题行）
+_HEADING_RE = re.compile(r"^\s*[（(]?\s*(?:第[一二三四五六七八九十百]+[条章节款项]|[一二三四五六七八九十]+[、.．]|\d+[、.．])")
 # 立场失衡（stance）线索词：仅作提示，需 LLM 复核“是否确实失衡”
 _STANCE_MARKERS = (
     "单方", "无需提供", "无需承担", "概不", "免除任", "免除.{0,8}责任", "无限期", "无条件",
@@ -141,8 +143,8 @@ def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict
         text = paragraphs[pid]
         if not any(t in text for t in _SLOT_TRIGGERS):
             continue
-        if len(text.strip()) <= 12:
-            continue   # #26：标题/短行排除
+        if _HEADING_RE.match(text.strip()):
+            continue   # #26：标题行排除
         if any(f.kind in ("money", "quantity", "ratio") for f in by_pid.get(pid, [])):
             continue   # #26：同段已有具体值，不算“不见时间”的缺失
         if any(f.kind in ("date", "duration") for f in by_pid.get(pid, [])):
