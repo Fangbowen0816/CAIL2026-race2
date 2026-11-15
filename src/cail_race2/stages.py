@@ -9,7 +9,7 @@ from .fill import apply_missing_fills
 from .hints import build_hints
 from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
-from .revise import (apply_revisions, guard_revisions, normalize_revisions,
+from .revise import (apply_revisions, build_base, guard_revisions, normalize_revisions,
                      reconcile, revise)
 from .state import ContractState
 from .verify import verify
@@ -59,13 +59,16 @@ class LLMReviseStage:
         except Exception:
             revs = []  # 降级：保留确定性算术修复
         locs, revs = reconcile(state.contract_id, state.localizations, revs)
-        locs, revs = apply_arithmetic_repairs(state.contract_id, state.paragraphs,
-                                              state.facts, locs, revs)
+        # #29 归一化底稿：以「原文 + 已产出修订」为基，后续确定性处理均在其上进行
+        #     （避免以带错字原文为基 → 覆盖同段其他修复；original_text 最后回填原文）
+        base = build_base(state.paragraphs, revs)
+        base_facts = extract_facts(base)
+        locs, revs = apply_arithmetic_repairs(state.contract_id, base, base_facts, locs, revs)
         locs, revs = reconcile(state.contract_id, locs, revs)
-        locs, revs = apply_missing_fills(state.contract_id, state.paragraphs, locs, revs)
-        locs, revs = apply_party_unification(state.contract_id, state.paragraphs,
-                                            state.facts, locs, revs)
+        locs, revs = apply_missing_fills(state.contract_id, base, locs, revs)
+        locs, revs = apply_party_unification(state.contract_id, base, base_facts, locs, revs)
         locs, revs = reconcile(state.contract_id, locs, revs)
+        # original_text 一律回填**输入原文逐字**（平台要求）
         revs = normalize_revisions(state.contract_id, state.paragraphs, revs)
         revs = guard_revisions(state.contract_id, state.paragraphs, revs)
         return state.clone(localizations=locs, revisions=revs,

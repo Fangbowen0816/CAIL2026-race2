@@ -73,3 +73,14 @@ def test_apply_keeps_reasonable_llm_version():
     _, out = apply_missing_fills("C1", {4: orig}, locs, revs)
     llm = [x for x in out if x.location and x.location[0][0] == 4][0]
     assert llm.correct_answer == ans   # 不过度覆盖合理版本
+
+
+def test_build_base_absorbs_reasonable_revision_only():
+    # #29：底稿只吸收“不过度”的修订
+    from cail_race2.revise import build_base
+    orig = {1: "乙方应向甲方提共办公桌20张。"}
+    ok = RevisionRecord("C1", [[1, 1]], ["typo"], orig[1], "乙方应向甲方提供办公桌20张。")
+    assert build_base(orig, [ok])[1] == "乙方应向甲方提供办公桌20张。"
+    over = RevisionRecord("C1", [[1, 1]], ["missing_element"], orig[1],
+                          orig[1] + "，并提交进度计划、验收报告、质量保证书及全部附件材料。")
+    assert build_base(orig, [over])[1] == orig[1]

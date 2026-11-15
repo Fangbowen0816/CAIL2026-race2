@@ -100,6 +100,23 @@ def apply_revisions(paragraphs: dict[int, str],
     return final
 
 
+def build_base(paragraphs: dict[int, str], revs: list[RevisionRecord]) -> dict[int, str]:
+    """#29 归一化底稿：以原文为基础，**只吸收“不过度”的已有修订**（如错字修复）。
+
+    过度改写的段用原文（避免把 LLM 的过度补全带入后续确定性处理）。
+    """
+    from .fill import _overedited
+    base = dict(paragraphs)
+    for r in revs:
+        loc = r.location or []
+        if len(loc) == 1 and loc[0][0] == loc[0][1] and r.correct_answer:
+            pid = loc[0][0]
+            orig = paragraphs.get(pid, "")
+            if not _overedited(orig, r.correct_answer):
+                base[pid] = r.correct_answer
+    return base
+
+
 def normalize_revisions(contract_id: str, paragraphs: dict[int, str],
                         revs: list[RevisionRecord]) -> list[RevisionRecord]:
     """把 original_text 重新回填为平台口径的段落正文（已 HTML 反转义），
