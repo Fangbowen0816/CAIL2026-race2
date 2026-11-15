@@ -34,6 +34,8 @@ _MISSING_MARKERS = ("另行协商", "另行约定", "另行确定", "另行签�
 # 强标记：几乎必然是缺失（用于确定性合并进召回）
 _STRONG_MISSING = ("另行协商", "另行约定", "另行确定", "另行签订", "另行补充", "另行商定",
                    "待定", "待补充", "待商定", "待确定", "未约定", "暂无")
+# 兜底条款语境（“未尽事项/补充协议…”）：其“另行…”**不算缺失**
+_BOILERPLATE = ("未尽", "补充协议", "其他约定", "其他事项", "协商解决", "附页", "其他未尽")
 _EMPTY_FIELD_RE = re.compile(
     r"(?:甲方|乙方|金额|日期|时间|地点|数量|单价|总价|价款|账户|开户行|税号)"
     r"\s*[:：]\s*(?=[，。；\n]|$)")
@@ -98,6 +100,8 @@ def find_missing_candidates(paragraphs: dict[int, str], strong: bool = False) ->
             continue
         hits = [m for m in markers if m in text]
         if hits:
+            if any(b in text for b in _BOILERPLATE):
+                continue   # #26：兜底条款排除
             out.append(Conflict("missing", [pid], "缺失标记: " + "、".join(hits)))
         elif not strong and _EMPTY_FIELD_RE.search(text):
             out.append(Conflict("missing", [pid], "空字段"))
@@ -137,6 +141,10 @@ def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict
         text = paragraphs[pid]
         if not any(t in text for t in _SLOT_TRIGGERS):
             continue
+        if len(text.strip()) <= 12:
+            continue   # #26：标题/短行排除
+        if any(f.kind in ("money", "quantity", "ratio") for f in by_pid.get(pid, [])):
+            continue   # #26：同段已有具体值，不算“不见时间”的缺失
         if any(f.kind in ("date", "duration") for f in by_pid.get(pid, [])):
             continue
         if _REL_TIME_RE.search(text):

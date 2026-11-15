@@ -47,6 +47,20 @@ def test_find_missing_candidates_strong_filters_weak_markers():
     assert [c.pids[0] for c in find_missing_candidates(paras, strong=True)] == [2]
 
 
+def test_boilerplate_not_reported_as_missing():
+    # #26：兜底条款（未尽事项/补充协议）不算缺失
+    paras = {1: "本合同未尽事宜，由双方另行签订补充协议。",
+             2: "交付时间另行协商。"}
+    assert [c.pids[0] for c in find_missing_candidates(paras, strong=True)] == [2]
+
+
+def test_gap_excludes_heading_and_valued_paragraph():
+    from cail_race2.verify import find_slot_gap_candidates
+    paras = {1: "第二条 交付与付款",                       # 标题/短行
+             2: "乙方应在交付前支付货款1000元。"}          # 同段已有金额
+    assert find_slot_gap_candidates(paras, extract_facts(paras)) == []
+
+
 def test_verify_output_sorted_by_pid():
     paras = {5: "交付时间另行协商。", 2: "合同总价2000元。", 9: "合同总价2200元。"}
     cs = _verify(paras)

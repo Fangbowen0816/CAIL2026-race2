@@ -6,6 +6,29 @@ from .contracts import Contract
 from .prompts import locate_messages
 from .records import LocalizationRecord
 
+import re
+
+# 标题/条款名：很短且以「第X条/一、/（1）」开头
+_HEADING_RE = re.compile(r"^\s*[（(]?\s*(?:第[一二三四五六七八九十百]+[条章节款项]|[一二三四五六七八九十]+[、.．]|\d+[、.．])")
+
+
+def _is_heading(text: str, max_len: int = 16) -> bool:
+    t = (text or "").strip()
+    return len(t) <= max_len and bool(_HEADING_RE.match(t))
+
+
+def filter_overreports(locs: list[LocalizationRecord], contract_id: str,
+                       paragraphs: dict[int, str]) -> list[LocalizationRecord]:
+    """#27：丢弃“纯标题/条款名”上的 inconsistency 误报；全丢则给哨兵。"""
+    out: list[LocalizationRecord] = []
+    for r in locs:
+        if r.error_type == "inconsistency" and r.location:
+            pids = [p for s, e in r.location for p in range(s, e + 1)]
+            if pids and all(_is_heading(paragraphs.get(p, "")) for p in pids):
+                continue
+        out.append(r)
+    return out or [LocalizationRecord(contract_id, [], None)]
+
 
 def detect(contract_id: str, context: str, paragraphs: dict[int, str], client,
            hints: str = "") -> list[LocalizationRecord]:
@@ -40,4 +63,5 @@ def merge_deterministic(locs: list[LocalizationRecord], contract_id: str,
         if (pid, "missing_element") not in covered:
             merged.append(LocalizationRecord(contract_id, [[pid, pid]], "missing_element"))
             covered.add((pid, "missing_element"))
-    return merged or [LocalizationRecord(contract_id, [], None)]
+    return filter_overreports(merged or [LocalizationRecord(contract_id, [], None)],
+                              contract_id, paragraphs)

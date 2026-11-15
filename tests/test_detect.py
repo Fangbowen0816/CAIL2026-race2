@@ -50,3 +50,20 @@ def test_merge_adds_all_inconsistency_sides():
     atoms = {(r.error_type, p) for r in merged
              for s, e in (r.location or []) for p in range(s, e + 1)}
     assert ("inconsistency", 1) in atoms and ("inconsistency", 3) in atoms
+
+
+def test_filter_drops_heading_only_inconsistency():
+    from cail_race2.detect import filter_overreports
+    paras = {1: "一、甲方的权利和义务", 2: "八、违约责任条款"}
+    locs = [LocalizationRecord("C1", [[1, 1]], "inconsistency"),
+            LocalizationRecord("C1", [[2, 2]], "typo")]
+    out = filter_overreports(locs, "C1", paras)
+    assert all(r.error_type != "inconsistency" for r in out)
+    assert any(r.error_type == "typo" for r in out)
+
+
+def test_filter_keeps_non_heading_inconsistency():
+    from cail_race2.detect import filter_overreports
+    paras = {1: "乙方北辰办公设备有限公司应在验收完成后开具发票并承担相应义务。"}
+    locs = [LocalizationRecord("C1", [[1, 1]], "inconsistency")]
+    assert [r.error_type for r in filter_overreports(locs, "C1", paras)] == ["inconsistency"]
