@@ -53,6 +53,25 @@ _VERBS_BY_KIND = {
     "service_time": _SERVICE_VERBS,
 }
 
+# 已建模的要素类别（确定性补写仅支持时间类；其余类别由 LLM 补写，此处登记供归类/evidence）
+ALL_KINDS = ("payment_time", "delivery_time", "acceptance_time", "service_time",
+             "amount", "quantity", "breach", "confidentiality", "acceptance_standard",
+             "performance_place", "bank_account", "term", "deposit")
+
+
+def classify_missing_multi(text: str) -> list[str]:
+    """#28：一段可同时缺**多个**要素 → 返回全部命中的时间类（顺序固定）。"""
+    out: list[str] = []
+    if any(v in text for v in _PAYMENT_VERBS):
+        out.append("payment_time")
+    if any(v in text for v in _DELIVERY_VERBS):
+        out.append("delivery_time")
+    if any(v in text for v in _ACCEPTANCE_VERBS):
+        out.append("acceptance_time")
+    if any(v in text for v in _SERVICE_VERBS):
+        out.append("service_time")
+    return out
+
 
 def _insert_before_verb(text: str, phrase: str, verbs) -> str | None:
     pos = -1

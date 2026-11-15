@@ -57,6 +57,12 @@ def test_relative_time_clause_not_filled():
     assert missing_fill("甲方应在生效后10日内支付。") is None
 
 
+def test_classify_missing_multi_supports_several_kinds():
+    from cail_race2.fill import classify_missing_multi
+    kinds = classify_missing_multi("乙方应在验收合格后交付货物并于当日支付全部价款。")
+    assert "payment_time" in kinds and "delivery_time" in kinds and "acceptance_time" in kinds
+
+
 def test_insert_does_not_split_word():
     # #32：「需方」不得被拆成「需…方」
     got = missing_fill("需方按本合同约定支付货款。")
