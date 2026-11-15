@@ -24,8 +24,10 @@ _LOCATE_SYS = """你是一名资深中文合同审查专家。阅读带段落编
 9. **stance 只报确实失衡的**：对等、合理、有救济（如给予补救期限）的条款不报；不把普通的“单方解除权（有合理条件）”误报为 stance。
 10. **标题/条款名/一般条款不是不一致**：inconsistency 必须能指认**对照物**（同槽位或同事项的另一处表述）；单点无对照不报。
 
-严格只输出 JSON：{"issues":[{"location":[[s,e]],"error_type":"typo|inconsistency|missing_element|stance"}]}
-若合同没有任何问题，输出 {"issues":[]}。"""
+严格只输出 JSON：{"issues":[{"location":[[s,e]],"error_type":"typo|inconsistency|missing_element|stance"}],
+"facts":[{"pid":N,"kind":"party|money|quantity|ratio|date|duration|code|place","value":"原文中的字串","slot":"可选槽位"}]}
+若合同没有任何问题，输出 {"issues":[],"facts":[]}。
+facts 可选，但尽量给出（value 必须是**该段原文里能找到的**字串，勿改写）。"""
 
 _REVISE_SYS = """你是一名资深中文合同审查专家。根据合同全文与已定位问题，给出每个问题段的**完整最终正文**。
 
