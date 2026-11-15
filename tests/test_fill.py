@@ -55,3 +55,21 @@ def test_acceptance_or_service_time_fill():
 def test_relative_time_clause_not_filled():
     assert missing_fill("乙方应在验收完成后开具发票。") is None
     assert missing_fill("甲方应在生效后10日内支付。") is None
+
+
+def test_insert_does_not_split_word():
+    # #32：「需方」不得被拆成「需…方」
+    got = missing_fill("需方按本合同约定支付货款。")
+    assert got is not None
+    assert "需在" not in got[1] and got[1].startswith("需方")
+
+
+def test_apply_keeps_reasonable_llm_version():
+    from cail_race2.fill import apply_missing_fills
+    orig = "乙方负责将货物送至甲方指定仓库。"
+    ans = "乙方应在合同生效后十日内将货物送至甲方指定仓库。"
+    locs = [LocalizationRecord("C1", [[4, 4]], "missing_element")]
+    revs = [RevisionRecord("C1", [[4, 4]], ["missing_element"], orig, ans)]
+    _, out = apply_missing_fills("C1", {4: orig}, locs, revs)
+    llm = [x for x in out if x.location and x.location[0][0] == 4][0]
+    assert llm.correct_answer == ans   # 不过度覆盖合理版本

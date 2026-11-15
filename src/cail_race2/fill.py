@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 
+from .evaluate import edit_similarity
 from .records import LocalizationRecord, RevisionRecord
 
 CANON = {
@@ -23,7 +24,8 @@ _PAYMENT_VERBS = ("支付", "付款", "付清", "付讫", "汇付", "结算")
 _DELIVERY_VERBS = ("交付", "交货", "送至", "送达", "发货", "运输", "配送")
 _ACCEPTANCE_VERBS = ("验收", "检验", "检查")
 _SERVICE_VERBS = ("提供", "完成", "履行", "承担", "开具", "提交")
-_MODALS = ("负责", "应当", "须", "需", "应于", "将于", "应")
+# 仅用**完整多字模态词**作插入锚点；单字「需/应/须」会拆词（需方/相应/相对应）
+_MODALS = ("负责", "应当", "应于", "将于")
 _TIME_RE = re.compile(r"\d+\s*(?:个工作日|工作日|日|天|个月|月|年)")
 # 相对时间引用：出现则认为“已有时间”，不补（防误补）
 _REL_TIME_RE = re.compile(
@@ -87,9 +89,19 @@ def missing_fill(text: str) -> tuple[str, str] | None:
     return kind, new
 
 
+def _overedited(orig: str, ans: str) -> bool:
+    """判断 LLM 修订是否“明显越界”（长度膨胀或大幅改写）。"""
+    if not orig or not ans:
+        return False
+    if len(ans) > len(orig) + max(8, int(0.4 * len(orig))):
+        return True
+    return edit_similarity(ans, orig) < 0.5
+
+
 def apply_missing_fills(contract_id: str, paragraphs: dict[int, str],
                         locs: list[LocalizationRecord], revs: list[RevisionRecord]):
-    """对被定位为 missing_element 的段落，用确定性补写替换 LLM 的过度补全。"""
+    """#32 降级为**兜底**：默认以 LLM 版本为准；仅当 LLM **未产出**或**明显越界**时，
+    才用确定性补写替换（不再无条件覆盖）。"""
     pids: set[int] = set()
     for r in locs:
         if r.error_type == "missing_element":
@@ -97,13 +109,19 @@ def apply_missing_fills(contract_id: str, paragraphs: dict[int, str],
                 pids.update(range(s, e + 1))
     if not pids:
         return locs, revs
+    existing = {r.location[0][0]: r for r in revs
+                if r.location and len(r.location) == 1 and r.location[0][0] == r.location[0][1]}
     out = list(revs)
     for pid in sorted(pids):
         res = missing_fill(paragraphs.get(pid, ""))
         if not res:
             continue
         _, text = res
-        out = [r for r in out if not (r.location and r.location[0][0] == pid)]
+        r = existing.get(pid)
+        if r is not None and not _overedited(r.original_text or paragraphs.get(pid, ""),
+                                             r.correct_answer or ""):
+            continue  # LLM 版本合理 → 保留
+        out = [x for x in out if not (x.location and x.location[0][0] == pid)]
         out.append(RevisionRecord(contract_id, [[pid, pid]], ["missing_element"],
                                   paragraphs.get(pid, ""), text))
     return locs, out
