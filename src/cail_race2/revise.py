@@ -30,13 +30,20 @@ def guard_typo_edit(error_types, orig: str, ans: str) -> str:
 
 def guard_revisions(contract_id: str, paragraphs: dict[int, str],
                     revs: list[RevisionRecord]) -> list[RevisionRecord]:
+    from .fill import missing_fill, _overedited
     out: list[RevisionRecord] = []
     for r in revs:
         loc = r.location or []
         if len(loc) == 1 and loc[0][0] == loc[0][1] and r.correct_answer is not None:
             orig = r.original_text or paragraphs.get(loc[0][0], "")
-            out.append(RevisionRecord(contract_id, r.location, r.error_types, orig,
-                                      guard_typo_edit(r.error_types, orig, r.correct_answer)))
+            types = list(r.error_types or [])
+            ans = r.correct_answer
+            if types == ["typo"]:
+                ans = guard_typo_edit(types, orig, ans)
+            elif types == ["missing_element"] and _overedited(orig, ans):
+                res = missing_fill(orig)                # 过度改写：用确定性补写兵底
+                ans = res[1] if res else orig           # 无补写 → 回退原文（避免负向编辑）
+            out.append(RevisionRecord(contract_id, r.location, types, orig, ans))
         else:
             out.append(r)
     return out
@@ -101,10 +108,6 @@ def apply_revisions(paragraphs: dict[int, str],
 
 
 def build_base(paragraphs: dict[int, str], revs: list[RevisionRecord]) -> dict[int, str]:
-    """#29 归一化底稿：以原文为基础，**只吸收“不过度”的已有修订**（如错字修复）。
-
-    过度改写的段用原文（避免把 LLM 的过度补全带入后续确定性处理）。
-    """
     from .fill import _overedited
     base = dict(paragraphs)
     for r in revs:
@@ -115,6 +118,38 @@ def build_base(paragraphs: dict[int, str], revs: list[RevisionRecord]) -> dict[i
             if not _overedited(orig, r.correct_answer):
                 base[pid] = r.correct_answer
     return base
+
+
+def sentence_rewrite(pid: int, paragraphs: dict[int, str], tokens, client,
+                     evidence_txt: str = "") -> str:
+    """#30：**只重写目标句**并拼回；不满足「只改目标句」则回退原文。
+
+    - 表格/特殊段不动；
+    - 其余句**不进模型**，从结构上消除过度编辑。
+    """
+    from .segments import (is_table_or_special, locate_target_sentence,
+                           only_target_changed, splice_sentence, split_sentences)
+    orig = paragraphs.get(pid, "")
+    if not orig or is_table_or_special(orig):
+        return orig
+    parts = split_sentences(orig)
+    idx = locate_target_sentence(orig, tokens)
+    target = parts[idx]
+    prompt = [
+        {"role": "system", "content":
+         "你只重写给定的一句话。只补/改必要信息，其余文字逐字保留；"
+         "严格只输出 JSON：{\"sentence\":\"重写后的完整句子\"}。"},
+        {"role": "user", "content": f"证据：\n{evidence_txt}\n\n待改写句：{target}"},
+    ]
+    try:
+        obj = client.complete_json(prompt)
+    except Exception:
+        return orig
+    new_sentence = obj.get("sentence") if isinstance(obj, dict) else None
+    if not isinstance(new_sentence, str) or not new_sentence.strip():
+        return orig
+    new_para = splice_sentence(parts, idx, new_sentence)
+    return new_para if only_target_changed(orig, new_para, idx) else orig
 
 
 def normalize_revisions(contract_id: str, paragraphs: dict[int, str],

@@ -75,7 +75,38 @@ def test_apply_keeps_reasonable_llm_version():
     assert llm.correct_answer == ans   # 不过度覆盖合理版本
 
 
-def test_build_base_absorbs_reasonable_revision_only():
+def test_sentence_rewrite_only_changes_target():
+    from cail_race2.revise import sentence_rewrite
+
+    class Fake:
+        def complete_json(self, m, **k):
+            return {"sentence": "乙方负责在本合同生效后10个工作日内将货物送至仓库。"}
+
+    orig = "第一句。乙方负责将货物送至仓库。第三句。"
+    out = sentence_rewrite(1, {1: orig}, ["送至"], Fake(), "缺交付时间")
+    assert out == "第一句。乙方负责在本合同生效后10个工作日内将货物送至仓库。第三句。"
+
+
+def test_sentence_rewrite_reverts_when_guard_fails():
+    from cail_race2.revise import sentence_rewrite
+
+    class Fake:
+        def complete_json(self, m, **k):
+            return {"sentence": "第二句改。又加了一句。"}   # 多出句子 → 守卫失败
+
+    orig = "第一句。第二句。"
+    assert sentence_rewrite(1, {1: orig}, ["第二句"], Fake()) == orig
+
+
+def test_sentence_rewrite_table_untouched():
+    from cail_race2.revise import sentence_rewrite
+
+    class Fake:
+        def complete_json(self, m, **k):
+            return {"sentence": "x"}
+
+    t = "<table><tr><td>x</td></tr></table>"
+    assert sentence_rewrite(1, {1: t}, ["x"], Fake()) == t
     # #29：底稿只吸收“不过度”的修订
     from cail_race2.revise import build_base
     orig = {1: "乙方应向甲方提共办公桌20张。"}
