@@ -14,3 +14,7 @@ def test_locate_prompt_covers_stance():
 
 def test_revise_prompt_requires_minimal_typo_edit():
     assert "只改错字" in _REVISE_SYS
+
+
+def test_revise_prompt_covers_stance_rebalance():
+    assert "对等" in _REVISE_SYS and "stance" in _REVISE_SYS
