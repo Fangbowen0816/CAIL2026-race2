@@ -16,12 +16,15 @@ _TYPO_MIN_SIM = 0.6
 
 
 def guard_typo_edit(error_types, orig: str, ans: str) -> str:
-    """#5：typo-only 的修订若为大幅改写，则回退为原文。
-    理由：字级 F0.5（beta=0.5）对**误改（FP）**惩罚重于漏改（FN）。"""
+    """#5/#14：typo-only 的修订若“大幅改写/添加实质内容”，则回退为原文。
+    理由：字级 F0.5（beta=0.5）对**误改（FP）**惩罚重于漏改（FN）；
+    错字纠正通常不增加长度，而过度补全会明显变长。"""
     if list(error_types or []) != ["typo"]:
         return ans
     if not orig or not ans:
         return ans
+    if len(ans) > len(orig) + max(3, int(0.2 * len(orig))):
+        return orig                                  # 添加了实质内容
     return orig if edit_similarity(ans, orig) < _TYPO_MIN_SIM else ans
 
 

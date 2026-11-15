@@ -17,6 +17,16 @@ def test_guard_reverts_large_typo_only_rewrite():
     assert guard_typo_edit(["typo"], ORIG, big) == ORIG
 
 
+def test_guard_reverts_content_appended_to_typo_only():
+    orig = "乙方应向甲方提供办公桌20张。"
+    ans = "乙方应在本合同生效后10个工作日内向甲方提供办公桌20张。"
+    assert guard_typo_edit(["typo"], orig, ans) == orig
+
+
+def test_guard_keeps_short_typo_fix():
+    assert guard_typo_edit(["typo"], "乙应提共", "乙应提供") == "乙应提供"
+
+
 def test_guard_ignores_multi_type_and_inconsistency():
     big = "乙方应当向甲方提供办公桌共计二十张，并保证产品质量符合约定标准。"
     assert guard_typo_edit(["typo", "inconsistency"], ORIG, big) == big
