@@ -30,7 +30,8 @@ def test_rejects_huge_rewrite():
 
 
 def test_rejects_new_conflict():
-    orig = {5: "合同总价2000元。", 6: "合同总价2200元。"}
-    cand = "合同总价3000元。"            # 与原 p6 形成新冲突
+    # 原文 p5/p6 一致（无冲突）；候选把 p5 改成 3000 → **新**冲突
+    orig = {5: "合同总价2000元。", 6: "合同总价2000元。"}
+    cand = "合同总价3000元。"
     v = review_candidate(5, orig, cand)
     assert v.accept is False and any(x.startswith("R5") for x in v.violations)
