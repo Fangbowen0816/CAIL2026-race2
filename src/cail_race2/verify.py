@@ -54,6 +54,8 @@ def find_conflicts(facts: list[Fact]) -> list[Conflict]:
             groups[("money", "总价")].append(f)
         elif f.kind == "code":
             groups[("code", "编号")].append(f)
+        elif f.kind == "place" and f.slot:
+            groups[("place", f.slot)].append(f)
 
     out: list[Conflict] = []
     for (kind, slot), fs in groups.items():

@@ -43,6 +43,20 @@ def test_org_not_duplicated_when_labeled_party():
     assert not any(x.kind == "org" and "远山" in x.value for x in f)
 
 
+def test_place_fact_and_same_label_conflict():
+    from cail_race2.verify import find_conflicts
+    f = _facts({1: "履行地点：北京市朝阳区某路某号", 2: "履行地点：上海市浦东新区某路某号"})
+    assert any(x.kind == "place" and x.slot == "履行地点" for x in f)
+    cs = [c for c in find_conflicts(f) if c.kind == "conflict" and c.slot == "履行地点"]
+    assert cs
+
+
+def test_place_no_conflict_when_consistent():
+    from cail_race2.verify import find_conflicts
+    f = _facts({1: "履约地点：北京市朝阳区某路某号", 2: "履约地点：北京市朝阳区某路某号"})
+    assert not [c for c in find_conflicts(f) if c.slot == "履约地点"]
+
+
 def test_party_mention_in_body_is_extracted():
     f = _facts({3: "乙方北辰办公设备有限公司应在验收完城后开具发票。"})
     assert any(x.kind == "party" and x.slot == "乙方" and "北辰" in x.value for x in f)

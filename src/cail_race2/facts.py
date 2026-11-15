@@ -39,6 +39,10 @@ PARTY_MENTION_RE = re.compile(
     rf"(?P<label>{PARTY_LABELS})(?P<name>[\u4e00-\u9fffA-Za-z0-9]{{2,30}}?(?:{_COMPANY_SUFFIX}))")
 # 无标签机构名（兜底，kind=org）
 ORG_RE = re.compile(rf"(?P<name>[\u4e00-\u9fff]{{2,20}}(?:{_COMPANY_SUFFIX}))")
+# #23 地点字段：带标签（履行/交付/服务/所在地/地址/地点）+ 冒号或“为”
+PLACE_RE = re.compile(
+    r"(?P<label>履行地点|交付地点|交货地点|服务地点|交货地|交付地|所在地|地址|地点)"
+    r"\s*[:：为]\s*(?P<value>[^，。；\n]{2,40})")
 
 MONEY_RE = re.compile(r"(?P<num>[0-9][0-9,，]*(?:\.[0-9]+)?)\s*(?P<unit>亿元|万元|元)")
 QTY_RE = re.compile(r"(?P<num>[0-9]+(?:\.[0-9]+)?)\s*"
@@ -126,6 +130,9 @@ def extract_facts(paragraphs: dict[int, str]) -> list[Fact]:
 
         for m in CODE_RE.finditer(text):
             add("code", m.group(1), pid, "编号")
+
+        for m in PLACE_RE.finditer(ptext):
+            add("place", m.group("value").strip(), pid, m.group("label"))
 
         for m in MONEY_RE.finditer(text):
             unit = m.group("unit")
