@@ -53,6 +53,47 @@ def parse_localization(contract: Contract, obj) -> list[LocalizationRecord]:
     return records
 
 
+FACT_KINDS = ("party", "money", "quantity", "ratio", "date", "duration", "code", "place")
+
+
+def parse_facts(contract: Contract, obj) -> list:
+    """#25：从 detect 响应里取结构化事实，并**校验值可在该段原文找到**（防幻觉）。"""
+    from .facts import Fact
+    out: list = []
+    seen: set = set()
+    for it in _as_list(obj, "facts"):
+        if not isinstance(it, dict):
+            continue
+        pid = it.get("pid")
+        kind = it.get("kind")
+        value = it.get("value")
+        slot = it.get("slot") or ""
+        if not isinstance(pid, int) or pid not in contract.paragraphs:
+            continue
+        if kind not in FACT_KINDS or not isinstance(value, str) or not value:
+            continue
+        if value not in contract.paragraphs[pid]:      # 必须在原文可找到
+            continue
+        key = (kind, value, pid, slot)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(Fact(kind, value, pid, slot))
+    return out
+
+
+def merge_facts(a: list, b: list) -> list:
+    """合并正则事实与 LLM 事实，按 (kind,value,pid,slot) 去重。"""
+    seen, out = set(), []
+    for f in list(a) + list(b):
+        key = (f.kind, f.value, f.pid, getattr(f, "slot", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(f)
+    return out
+
+
 def parse_revisions(contract: Contract, obj) -> list[RevisionRecord]:
     """归一化修订响应：original_text 按定位强制回填原文；同 PID 去重；非法项丢弃。"""
     records: list[RevisionRecord] = []
