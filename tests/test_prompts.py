@@ -18,3 +18,6 @@ def test_revise_prompt_requires_minimal_typo_edit():
 
 def test_revise_prompt_covers_stance_rebalance():
     assert "对等" in _REVISE_SYS and "stance" in _REVISE_SYS
+    # few-shot：官方口径的改法示例
+    assert "验收合格后5个工作日内付清" in _REVISE_SYS
+    assert "守约方**有权**" in _REVISE_SYS
