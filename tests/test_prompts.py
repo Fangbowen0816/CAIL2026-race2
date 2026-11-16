@@ -21,3 +21,8 @@ def test_revise_prompt_covers_stance_rebalance():
     # few-shot：官方口径的改法示例
     assert "验收合格后5个工作日内付清" in _REVISE_SYS
     assert "守约方**有权**" in _REVISE_SYS
+
+
+def test_revise_prompt_missing_rules():
+    assert "不发明数值" in _REVISE_SYS
+    assert "不得只写" in _REVISE_SYS and "在本合同生效后10个工作日内" in _REVISE_SYS
