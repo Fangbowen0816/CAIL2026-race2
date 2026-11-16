@@ -30,7 +30,19 @@ def _merge_stance(state: ContractState, locs: list, client) -> list:
         covered.add((pid, "stance"))
     return locs
 from .state import ContractState
-from .verify import verify
+from .verify import verify, find_stance_symmetry
+
+
+def _merge_stance_symmetry(state: ContractState, locs: list) -> list:
+    """#45 P1：跨条款对等性（甲方↔乙方互换后结构配对）→ 补 stance 定位。"""
+    covered = {(pid, "stance") for r in locs if r.error_type == "stance"
+               for s, e in (r.location or []) for pid in range(s, e + 1)}
+    for c in find_stance_symmetry(state.paragraphs):
+        pid = c.pids[0]
+        if (pid, "stance") not in covered:
+            locs.append(LocalizationRecord(state.contract_id, [[pid, pid]], "stance"))
+            covered.add((pid, "stance"))
+    return locs
 
 
 class FactsStage:
@@ -62,6 +74,7 @@ class LLMDetectStage:
         locs = merge_deterministic(locs, state.contract_id, state.paragraphs)
         locs = _merge_stance(state, locs, self.client)
         locs = filter_stance_overreport(state.contract_id, state.paragraphs, locs)
+        locs = _merge_stance_symmetry(state, locs)
         return state.clone(localizations=locs)
 
 

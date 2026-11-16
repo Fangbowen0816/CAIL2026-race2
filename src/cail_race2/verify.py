@@ -139,6 +139,55 @@ _STANCE_MARKERS = (
 )
 
 
+# --- #45 P1：跨条款对等性（罚则量化不对称）--------------------------------------
+_PENALTY_RE = re.compile(r"违约金|违约责任|赔偿损失|罚款")
+_GENERIC_RE = re.compile(r"任何一方|守约方|违约方|双方均应|甲乙双方")
+_QUANT_RE = re.compile(
+    r"万分之|千分之|百分之|\d+\s*%|‰|\d+\s*倍|一个月的?租金|一个月的?房租|"
+    r"合同总[价金]额\s*[的按]?\s*\d+|总金额\s*[的按]?\s*\d+|租金总额\s*[的按]?\s*\d+"
+    r"|应付未付租金\s*[的按]?\s*[日月]|按合同总租金\s*\d+")
+
+
+def _swap_parties(t: str) -> str:
+    return t.replace("甲方", "\x00").replace("乙方", "甲方").replace("\x00", "乙方")
+
+
+def find_stance_symmetry(paragraphs: dict[int, str], thr: float = 0.5) -> list[Conflict]:
+    """跨条款对等性：把一方的罚则段做「甲乙互换」后与另一方罚则段**结构配对**，
+    若结构相似（≥thr）而**只有一方量化罚则**（有比例/倍数）→ 报未量化方。
+
+    实测（45 合同，对 stance 标注）：thr=0.5 时报出极少（2 条）但**精度 100%**；
+    合同罕见「结构几乎相同、仅换方」的对照条款，故此路召回有限（见 docs/召回分析.md）。
+    """
+    import difflib
+    pens = []
+    for pid in sorted(paragraphs):
+        t = (paragraphs[pid] or "").strip()
+        if len(t) < 25 or not _PENALTY_RE.search(t):
+            continue
+        labels = [lab for lab in ("甲方", "乙方") if lab in t]
+        if not labels:
+            continue
+        subj = min(labels, key=lambda lab: t.index(lab))
+        pens.append((pid, subj, t, bool(_QUANT_RE.search(t))))
+    out: list[Conflict] = []
+    for pid, subj, t, quant in pens:
+        if quant:
+            continue
+        mirror = _swap_parties(t)
+        best, bq = 0.0, None
+        for pid2, subj2, t2, q2 in pens:
+            if subj2 == subj:
+                continue
+            r = difflib.SequenceMatcher(None, mirror, t2).ratio()
+            if r > best:
+                best, bq = r, q2
+        if best >= thr and bq:
+            out.append(Conflict("stance", [pid],
+                                f"与对方同构罚则不对等（相似度{best:.2f}）：本侧未量化、对方有比例"))
+    return out
+
+
 def find_stance_candidates(paragraphs: dict[int, str]) -> list[Conflict]:
     """扫描“失衡措辞”段落，作为 stance 的**线索**（不强制并入定位）。"""
     out: list[Conflict] = []
