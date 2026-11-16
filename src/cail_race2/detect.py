@@ -65,7 +65,7 @@ def merge_deterministic(locs: list[LocalizationRecord], contract_id: str,
     - 强缺失候选（保 recall，缺失权重最高）；
     去掉空哨兵。"""
     from .facts import extract_facts
-    from .verify import find_conflicts, find_missing_candidates
+    from .verify import find_conflicts, find_missing_candidates, find_structure_gaps
     merged = [r for r in locs if r.location]
     covered: set = set()
     for r in merged:
@@ -78,8 +78,10 @@ def merge_deterministic(locs: list[LocalizationRecord], contract_id: str,
             if (pid, "inconsistency") not in covered:
                 merged.append(LocalizationRecord(contract_id, [[pid, pid]], "inconsistency"))
                 covered.add((pid, "inconsistency"))
-    for c in find_missing_candidates(paragraphs, strong=True):
-        pid = c.pids[0]
+    missing_pids = {c.pids[0] for c in find_missing_candidates(paragraphs, strong=True)}
+    for c in find_structure_gaps(paragraphs):      # #45 P0：结构化要素缺失
+        missing_pids.update(c.pids)
+    for pid in sorted(missing_pids):
         if (pid, "missing_element") not in covered:
             merged.append(LocalizationRecord(contract_id, [[pid, pid]], "missing_element"))
             covered.add((pid, "missing_element"))

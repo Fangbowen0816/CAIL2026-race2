@@ -181,5 +181,80 @@ def find_slot_gap_candidates(paragraphs: dict[int, str], facts) -> list[Conflict
 def verify(paragraphs: dict[int, str], facts: list[Fact] | None = None) -> list[Conflict]:
     facts = facts if facts is not None else extract_facts(paragraphs)
     out = (find_conflicts(facts) + check_arithmetic(facts, paragraphs)
-           + find_missing_candidates(paragraphs))
-    return sorted(out, key=lambda c: (c.pids[0] if c.pids else 0, c.kind))
+           + find_missing_candidates(paragraphs)
+           + find_structure_gaps(paragraphs)
+           + find_slot_gap_candidates(paragraphs, facts))
+    dedup: dict = {}
+    for c in out:
+        dedup.setdefault((c.kind, tuple(c.pids)), c)
+    return sorted(dedup.values(), key=lambda c: (c.pids[0] if c.pids else 0, c.kind))
+
+
+# --- 结构化要素完整性（#45 P0）------------------------------------------------
+_PARTY_LABELS = ("甲方", "乙方", "丙方", "丁方")
+_CREDIT_CODE = ("统一社会信用代码", "社会信用代码")
+_ACCOUNT_RE = re.compile(r"户\s*名|账户名称|收款人|收款账户")
+_ACCOUNT_FIELDS = ("账号", "帐号", "开户行", "开户银行", "银行账号")
+_INVOICE_TRIGGER = ("开票信息", "发票信息")
+_INVOICE_BANK = ("开户行", "开户银行", "银行账号", "账号", "帐号")
+_DELIVERY_TRIGGER = ("交付", "交货", "送货", "移交", "运送", "提货")
+_DELIVERY_PLACE = ("地点", "地址", "仓库", "现场", "送至", "交付至", "交付地点",
+                   "指定", "上门", "工地", "场所", "处所", "甲方处", "乙方处")
+_DELIVERY_METHOD = ("方式", "快递", "物流", "运输", "自提", "承运", "邮寄", "托运")
+
+
+def _party_defs(paragraphs: dict[int, str]) -> dict:
+    """各方定义段：首次出现「X方：」且非短标题的段落。"""
+    defs: dict = {}
+    for pid in sorted(paragraphs):
+        t = paragraphs[pid] or ""
+        if _HEADING_RE.match(t.strip()) and len(t) < 40:
+            continue
+        for lab in _PARTY_LABELS:
+            if lab not in defs and re.search(lab + r"\s*[:：]", t):
+                defs[lab] = pid
+    return defs
+
+
+def find_structure_gaps(paragraphs: dict[int, str]) -> list[Conflict]:
+    """结构化要素缺失：主体信息对等 / 收款账户 / 开票信息 / 交付三要素。"""
+    out: list[Conflict] = []
+    pids_sorted = sorted(paragraphs)
+
+    def window(pid: int, span: int) -> str:
+        ids = [p for p in pids_sorted if p >= pid][:span]
+        return "".join((paragraphs.get(p) or "") for p in ids)
+
+    # 1) 主体信息对等：一方有统一社会信用代码、另一方没有
+    defs = _party_defs(paragraphs)
+    has: dict = {}
+    for lab, pid in defs.items():
+        w = window(pid, 2)
+        m = re.search(lab + r"\s*[:：]", w)
+        suffix = w[m.end():] if m else w      # 只看本标签之后，避免把上一方的代码算进来
+        has[lab] = any(k in suffix for k in _CREDIT_CODE)
+    if defs and any(has.values()):
+        for lab, pid in defs.items():
+            if not has[lab]:
+                out.append(Conflict("party_gap", [pid],
+                                    f"{lab}主体信息不全（未列统一社会信用代码）"))
+
+    # 2) 收款账户：有户名但缺开户行/账号（排除标题行与“...如下：”引导行）
+    for pid in pids_sorted:
+        t = (paragraphs[pid] or "").strip()
+        if not _ACCOUNT_RE.search(t):
+            continue
+        if _HEADING_RE.match(t) or (t.endswith(("：", ":")) and len(t) < 30):
+            continue
+        if not any(k in window(pid, 2) for k in _ACCOUNT_FIELDS):
+            out.append(Conflict("account_gap", [pid], "收款账户信息不全（缺开户行/账号）"))
+
+    # 3) 开票信息：以“开票信息/发票信息”引导段为准判整块完整性
+    for pid in pids_sorted:
+        t = paragraphs[pid] or ""
+        if not any(k in t for k in _INVOICE_TRIGGER):
+            continue
+        w = window(pid, 3)
+        if not any(k in w for k in _INVOICE_BANK) or ("地址" not in w and "电话" not in w):
+            out.append(Conflict("invoice_gap", [pid], "开票信息不全（缺开户行/账号/地址电话）"))
+    return out
