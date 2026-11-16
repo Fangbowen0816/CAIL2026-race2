@@ -152,3 +152,21 @@ precision 代理 = legit / (legit + viol)
    纯 typo 段违规 81→0、合法纠错 0 损失；
 4. 若要接近 pycorrector 在 EC-LAW 上的 F1 0.94–0.98，需**神经纠错模型微调**（Qwen-CTC/MacBERT），
    而非词典——这是后续可选项。
+
+
+---
+
+# 收敛结论（最终状态）
+
+**保留（可用）**
+- `src/cail_race2/typo_guard.py` —— 错别字修订后置校验（纯 typo 段全规则、其它段空白保真）；
+- `scripts/typo_check.py` —— 无 gold 的代理指标检测机制；
+- `scripts/annotate_typos.py` + `scripts/typo_validate.py` —— 用合同错别字集做验证（集本身 gitignore）；
+- `resources/confusion/{same_pinyin,same_stroke}.txt` —— 混淆集（同时也是 `typo_guard` 的判据来源）。
+
+**移除（实测不可用，已删代码/产物）**
+- `typo_dict.py`、`build_general_lexicon.py`、`build_typo_lexicon.py`、`typo_dict_check.py`；
+- `resources/typo/general.jsonl`（19547 条通用词典）、`resources/typo/public/`（公开 CSC 语料）；
+- 管线内的自动词典补漏与词典提示注入接线。
+  原因：实测精度 0.12–0.24，误命中多为函数字碎片（`元整/日为/在本`），
+  既会污染定位也会污染提示 → 净负收益。

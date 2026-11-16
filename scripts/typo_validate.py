@@ -1,11 +1,16 @@
 # -*- coding: utf-8 -*-
-"""验证错别字纠错算法：用**合同错别字集**（agent 不查询，仅作标注真值）评估效果。
+"""用「合同错别字集」验证错别字模块效果（该集仅作标注真值，agent 不查询）。
 
 用法：
   python scripts/typo_validate.py \
       --annot resources/typo/contract/typo_set.jsonl \
       --contracts resources/datasets/race2_semifinal/data/contracts.jsonl \
-      [--localization outputs/semi_kdeep/localization_predictions.jsonl]
+      --localization outputs/semi_kdeep/localization_predictions.jsonl \
+      --revision outputs/semi_kdeep/revision_predictions.jsonl
+
+指标：
+  段级召回 = 标注所在段被标为 typo 的比例（定位能力）
+  纠正召回 = 标注的错字在最终文本中已被改正的比例（修订能力）
 """
 from __future__ import annotations
 
@@ -18,8 +23,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from cail_race2.contracts import load_contracts      # noqa: E402
-from cail_race2.typo_dict import TypoDict            # noqa: E402
+from cail_race2.contracts import load_contracts  # noqa: E402
 
 
 def _read(path):
@@ -27,83 +31,47 @@ def _read(path):
         return [json.loads(l) for l in f if l.strip()]
 
 
-def spans(text, w, used):
-    i, out = 0, []
-    while True:
-        j = text.find(w, i)
-        if j < 0:
-            break
-        if not any(j < e and j + len(w) > s for s, e in used):
-            out.append((j, j + len(w)))
-            used.add((j, j + len(w)))
-            break
-        i = j + 1
-    return out
-
-
-def evaluate(pred, gt, paras):
-    tp = fp = fn = 0
-    for cid, anns in gt.items():
-        p = paras[cid]
-        used = set()
-        gspans = collections.defaultdict(list)
-        for a in anns:
-            gspans[a["pid"]] += spans(p.get(a["pid"], "") or "", a["wrong"], set())
-        for h in pred.get(cid, []):
-            hit = any(h["start"] < e and h["end"] > s for s, e in gspans[h["pid"]])
-            tp += hit
-            fp += not hit
-        fn += sum(len(v) for v in gspans.values()) - sum(
-            1 for h in pred.get(cid, []) for s, e in gspans[h["pid"]]
-            if h["start"] < e and h["end"] > s)
-    P = tp / (tp + fp) if tp + fp else 0.0
-    R = tp / (tp + fn) if tp + fn else 0.0
-    return {"TP": tp, "FP": fp, "FN": fn, "P": round(P, 4), "R": round(R, 4),
-            "F1": round(2 * P * R / (P + R), 4) if P + R else 0.0}
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--annot", required=True)
     ap.add_argument("--contracts", required=True)
-    ap.add_argument("--lexicon", default=None, help="通用词典（默认 resources/typo/general.jsonl）")
     ap.add_argument("--localization", default=None)
+    ap.add_argument("--revision", default=None)
     a = ap.parse_args()
     anns = _read(a.annot)
     cs = {c.contract_id: c for c in load_contracts(a.contracts)}
-    paras = {cid: c.paragraphs for cid, c in cs.items()}
-    d = TypoDict.load(a.lexicon) if a.lexicon else TypoDict.load()
-    gt = collections.defaultdict(list)
-    for x in anns:
-        gt[x["contract_id"]].append(x)
-    pred = {}
-    for cid in paras:
-        hits = []
-        for pid in sorted(paras[cid]):
-            for h in d.find(paras[cid][pid] or ""):
-                hits.append({**h, "pid": pid})
-        pred[cid] = hits
-    print("通用词典 %d 条" % len(d.entries))
-    print("【算法单独】", evaluate(pred, gt, paras))
+    orig = {cid: c.paragraphs for cid, c in cs.items()}
+    loc = collections.defaultdict(set)
     if a.localization:
-        loc = collections.defaultdict(set)
         for x in _read(a.localization):
             if x["error_type"] == "typo":
                 for s, e in (x["location"] or []):
-                    for p in range(s, e + 1):
-                        loc[x["contract_id"]].add(p)
-        tot = llm = dic = both = 0
-        for cid, anns2 in gt.items():
-            hits = pred.get(cid, [])
-            for x in anns2:
-                tot += 1
-                in_llm = x["pid"] in loc[cid]
-                in_dic = any(h["pid"] == x["pid"] for h in hits)
-                llm += in_llm
-                dic += in_dic
-                both += in_llm or in_dic
-        print("【召回（对错别字集 %d 处）】LLM %.0f%% | 词典 %.0f%% | 合并 %.0f%%"
-              % (tot, 100 * llm / tot, 100 * dic / tot, 100 * both / tot))
+                    loc[x["contract_id"]].update(range(s, e + 1))
+    final = collections.defaultdict(lambda: collections.defaultdict(str))
+    if a.revision:
+        for x in _read(a.revision):
+            if not x.get("location"):
+                continue
+            pid = x["location"][0][0]
+            final[x["contract_id"]][pid] = x.get("correct_answer") or ""
+    tot = loc_ok = fixed_ok = 0
+    for x in anns:
+        cid = x["contract_id"]
+        src = orig[cid].get(x["pid"], "") or ""
+        if x["wrong"] not in src:
+            continue                                   # 无法定位到原文，跳过
+        tot += 1
+        loc_ok += x["pid"] in loc[cid]
+        f = final[cid].get(x["pid"]) or src
+        fixed_ok += (x["wrong"] not in f) and (x["right"] in f)
+    if not tot:
+        print("无可评估的标注")
+        return 0
+    print("合同错别字集：%d 处可定位" % tot)
+    if a.localization:
+        print("  段级召回（定位为 typo）：%.1f%%" % (100 * loc_ok / tot))
+    if a.revision:
+        print("  纠正召回（最终文本已改正）：%.1f%%" % (100 * fixed_ok / tot))
     return 0
 
 
