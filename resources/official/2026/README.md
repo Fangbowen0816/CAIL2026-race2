@@ -24,8 +24,6 @@ official/2026/
 │   ├── prizeList.json       # 奖金档位
 │   ├── notices.json         # 本赛道通知（当前为空）
 │   └── datasetList.json     # 数据集列表（需登录，见下）
-└── race3_online_infringement/  # 赛道 04 涉网侵权治理（与 swqqzl/ 工具包对应）
-    └── （同上结构）
 ```
 
 ## 关键事实（race2 智能合同审查）
@@ -38,6 +36,9 @@ official/2026/
 - **阶段权重**：最终成绩 = 初赛 10% + 复赛 30% + 封测 60%。
 - **时间**：初赛 2026.10.15–11.15 ｜ 复赛 11.15–12.20 ｜ 封测 12.20–12.31。
 - **提交**：zip 内固定两个文件 `localization_predictions.jsonl` + `revision_predictions.jsonl`。
+- **复赛口径变化（实测反推）**：新增错误类型 **`stance`（立场失衡/显失公平）**；
+  四类权重为 **typo:inconsistency:missing:stance = 1:2:4:3**（初赛的 1:3:6 已不适用）。
+  另：**定位的 stance 段必须有修订记录**（`correct_answer` 可为 null）。
 - **封测**：自行部署推理服务，提交 `{"api_key": "...", "headers": {...}}`；平台逐份合同 POST
   `{contract_id, context}`，期望返回 `{contract_id, localization, revisions}`。
 
