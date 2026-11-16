@@ -3,14 +3,31 @@
 from __future__ import annotations
 
 from .consistency import apply_party_unification
+from .contracts import Contract
 from .detect import detect, merge_deterministic
 from .facts import extract_facts
 from .fill import apply_missing_fills
 from .hints import build_hints
 from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
-from .revise import (apply_revisions, build_base, ensure_revisions_for_localized,
+from .revise import (apply_revisions, build_base, ensure_revisions_for_localized,  # noqa: E402
                      guard_revisions, normalize_revisions, reconcile, revise)
+from .stance_review import review_stance  # noqa: E402
+
+
+def _merge_stance(state: ContractState, locs: list, client) -> list:
+    """#43：专用 stance 审查（逐条款穷举）结果并入定位（去重）。"""
+    contract = Contract(state.contract_id, state.context, state.paragraphs)
+    extra = review_stance(contract, client)
+    covered = {(pid, "stance") for r in locs if r.error_type == "stance"
+               for s, e in (r.location or []) for pid in range(s, e + 1)}
+    for r in extra:
+        pid = r.location[0][0]
+        if (pid, "stance") in covered:
+            continue
+        locs.append(r)
+        covered.add((pid, "stance"))
+    return locs
 from .state import ContractState
 from .verify import verify
 
@@ -42,6 +59,7 @@ class LLMDetectStage:
         except Exception:
             locs = [LocalizationRecord(state.contract_id, [], None)]  # 降级：仅用确定性结果
         locs = merge_deterministic(locs, state.contract_id, state.paragraphs)
+        locs = _merge_stance(state, locs, self.client)
         return state.clone(localizations=locs)
 
 

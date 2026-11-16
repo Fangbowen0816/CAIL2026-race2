@@ -11,6 +11,9 @@ class FakeClient:
 
     def complete_json(self, messages, **kwargs):
         self.calls.append(messages)
+        sys = messages[0]["content"] if messages else ""
+        if "reviews" in sys:          # #43 stance 审查 → 默认无
+            return {"reviews": []}
         if not self.responses:
             raise AssertionError("不应再调用模型（应命中缓存）")
         return self.responses.pop(0)
