@@ -107,12 +107,13 @@ def apply_revisions(paragraphs: dict[int, str],
     return final
 
 
-def ensure_stance_revisions(contract_id: str, paragraphs: dict[int, str],
-                           locs: list[LocalizationRecord],
-                           revs: list[RevisionRecord]) -> list[RevisionRecord]:
-    """平台硬要求：**每个被定位的 stance 段必须有修订记录**（correct_answer 可为 null）。
+def ensure_revisions_for_localized(contract_id: str, paragraphs: dict[int, str],
+                                  locs: list[LocalizationRecord],
+                                  revs: list[RevisionRecord]) -> list[RevisionRecord]:
+    """不变式（平台要求）：**每个被定位的 PID 都要有修订记录**（定位↔修订双向一致）。
 
-    对已定位 stance、但无修订记录的 pid，补一条（error_types = 该段定位类型并集）。
+    缺修订的 PID → 补一条「**原样返回**」记录（error_types = 该段定位类型并集，
+    correct_answer = 原文；官方文档明确兼容原样返回）。
     """
     loc_types: dict[int, set] = {}
     for r in locs:
@@ -120,14 +121,18 @@ def ensure_stance_revisions(contract_id: str, paragraphs: dict[int, str],
             for s, e in (r.location or []):
                 for pid in range(s, e + 1):
                     loc_types.setdefault(pid, set()).add(r.error_type)
-    stance_pids = {pid for pid, ts in loc_types.items() if "stance" in ts}
     have = {r.location[0][0] for r in revs
             if r.location and len(r.location) == 1 and r.location[0][0] == r.location[0][1]}
     out = list(revs)
-    for pid in sorted(stance_pids - have):
-        out.append(RevisionRecord(contract_id, [[pid, pid]], sorted(loc_types[pid]),
-                                  paragraphs.get(pid, ""), None))
+    for pid in sorted(set(loc_types) - have):
+        orig = paragraphs.get(pid, "")
+        out.append(RevisionRecord(contract_id, [[pid, pid]], sorted(loc_types[pid]), orig, orig))
     return out
+
+
+# 兼容旧名（仅 stance）：语义已泛化为「所有定位段」
+def ensure_stance_revisions(contract_id, paragraphs, locs, revs):
+    return ensure_revisions_for_localized(contract_id, paragraphs, locs, revs)
 
 
 def build_base(paragraphs: dict[int, str], revs: list[RevisionRecord]) -> dict[int, str]:

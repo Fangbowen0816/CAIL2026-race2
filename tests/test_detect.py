@@ -67,3 +67,13 @@ def test_filter_keeps_non_heading_inconsistency():
     paras = {1: "乙方北辰办公设备有限公司应在验收完成后开具发票并承担相应义务。"}
     locs = [LocalizationRecord("C1", [[1, 1]], "inconsistency")]
     assert [r.error_type for r in filter_overreports(locs, "C1", paras)] == ["inconsistency"]
+
+
+def test_filter_drops_empty_paragraph_localization():
+    from cail_race2.detect import filter_overreports
+    paras = {23: "", 24: "正常条款。"}
+    locs = [LocalizationRecord("C1", [[23, 23]], "missing_element"),
+            LocalizationRecord("C1", [[24, 24]], "missing_element")]
+    out = filter_overreports(locs, "C1", paras)
+    atoms = {p for r in out for s, e in (r.location or []) for p in range(s, e + 1)}
+    assert 23 not in atoms and 24 in atoms

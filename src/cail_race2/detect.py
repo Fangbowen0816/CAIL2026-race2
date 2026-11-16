@@ -17,16 +17,36 @@ def _is_heading(text: str, max_len: int = 16) -> bool:
     return len(t) <= max_len and bool(_HEADING_RE.match(t))
 
 
+def _keep_pids(location, paragraphs) -> list:
+    """去掉区间内的**空段落**，并把剩余 pid 重建为（合并连续）区间。"""
+    pids = sorted({p for s, e in location for p in range(s, e + 1)
+                   if (paragraphs.get(p, "") or "").strip()})
+    if not pids:
+        return []
+    out = [[pids[0], pids[0]]]
+    for p in pids[1:]:
+        if p == out[-1][1] + 1:
+            out[-1][1] = p
+        else:
+            out.append([p, p])
+    return out
+
+
 def filter_overreports(locs: list[LocalizationRecord], contract_id: str,
                        paragraphs: dict[int, str]) -> list[LocalizationRecord]:
-    """#27：丢弃“纯标题/条款名”上的 inconsistency 误报；全丢则给哨兵。"""
+    """#27：① 剔除定位区间内的空段落；② 丢弃“纯标题行”上的 inconsistency；全丢则给哨兵。"""
     out: list[LocalizationRecord] = []
     for r in locs:
-        if r.error_type == "inconsistency" and r.location:
-            pids = [p for s, e in r.location for p in range(s, e + 1)]
-            if pids and all(_is_heading(paragraphs.get(p, "")) for p in pids):
-                continue
-        out.append(r)
+        if not r.location:
+            out.append(r)
+            continue
+        kept = _keep_pids(r.location, paragraphs)
+        if not kept:
+            continue   # 整段区间都是空段
+        pids = [p for s, e in kept for p in range(s, e + 1)]
+        if r.error_type == "inconsistency" and all(_is_heading(paragraphs.get(p, "")) for p in pids):
+            continue
+        out.append(LocalizationRecord(contract_id, kept, r.error_type))
     return out or [LocalizationRecord(contract_id, [], None)]
 
 
