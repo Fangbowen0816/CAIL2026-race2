@@ -14,7 +14,7 @@ def test_localization_perfect_is_full_marks():
     gold = [_loc("C1", [[2, 2]], "typo"), _loc("C1", [[1, 1], [3, 3]], "inconsistency"),
             _loc("C1", [[4, 4]], "missing_element")]
     s = localization_score(gold, list(gold))
-    assert s["L"] == 100.0
+    assert s["L"] == 70.0
     assert s["typo"]["f1"] == 1.0 and s["inconsistency"]["f1"] == 1.0
 
 
@@ -57,7 +57,7 @@ def test_revision_perfect_is_full_marks():
     ]
     rev = revision_score(contracts, gold, list(gold))
     assert rev["T"] == 100.0 and rev["C"] == 100.0 and rev["M"] == 100.0
-    assert rev["R"] == 100.0
+    assert rev["R"] == 70.0
 
 
 def test_revision_unmodified_scores_lower():

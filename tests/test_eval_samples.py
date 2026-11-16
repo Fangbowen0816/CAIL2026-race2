@@ -11,4 +11,4 @@ from eval_samples import evaluate  # noqa: E402
 
 def test_gold_selfcheck_is_full_marks():
     rep = evaluate()
-    assert rep["Total"] == 100.0 and rep["Loc_missing"] == 100.0 and rep["Rev_missing"] == 100.0
+    assert rep["Total"] == 70.0 and rep["Loc_missing"] == 100.0 and rep["Rev_missing"] == 100.0

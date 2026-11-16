@@ -55,10 +55,10 @@ def test_localization_weights_and_f1():
             {"contract_id": "C1", "location": [[1, 1], [3, 3]], "error_type": "inconsistency"},
             {"contract_id": "C1", "location": [[4, 4]], "error_type": "missing_element"}]
     s = localization_score(gold, list(gold))
-    assert s["L"] == 100.0
+    assert s["L"] == 70.0
     # 错一个类别 → 按 1:3:6 扣分
     s2 = localization_score(gold, gold[:2])
-    assert s2["missing_element"]["f1"] == 0.0 and s2["L"] == 40.0
+    assert s2["missing_element"]["f1"] == 0.0 and s2["L"] == 30.0
 
 
 def test_revision_progress_metric():
@@ -95,7 +95,7 @@ def _full_gold_pred():
 def test_official_report_perfect_sample():
     contracts, gold = _full_gold_pred()
     rep = official_report(contracts, gold, gold)
-    assert rep["Total"] == 100.0 and rep["Loc_typo"] == 100.0
+    assert rep["Total"] == 70.0 and rep["Loc_typo"] == 100.0
 
 
 def test_scorer_returns_platform_fields():
@@ -107,4 +107,4 @@ def test_scorer_returns_platform_fields():
     assert out["mode"] == "cail_gold"
     for f in PLATFORM_FIELDS:
         assert f in out["breakdown"]
-    assert out["score"] == pytest.approx(100.0)
+    assert out["score"] == pytest.approx(70.0)

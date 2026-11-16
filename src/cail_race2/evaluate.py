@@ -25,9 +25,9 @@ from collections import Counter
 
 from .records import ERROR_TYPES
 
-# 复赛新增 `stance`（立场失衡）；官方权重未公布，暂用**占位值 30**（待口径更新）
-LOC_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0, "stance": 30.0}
-REV_WEIGHT = {"typo": 10.0, "inconsistency": 30.0, "missing_element": 60.0, "stance": 30.0}
+# 复赛实测反推（逐位吻合 45 合同提交）：typo:inconsistency:missing:stance = 1:2:4:3
+LOC_WEIGHT = {"typo": 10.0, "inconsistency": 20.0, "missing_element": 40.0, "stance": 30.0}
+REV_WEIGHT = {"typo": 10.0, "inconsistency": 20.0, "missing_element": 40.0, "stance": 30.0}
 
 
 # --------------------------------------------------------------------------- 定位

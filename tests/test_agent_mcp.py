@@ -33,7 +33,7 @@ def test_score_review_gold_mode(mcp):
                                        encoding="utf-8")]
     out = json.loads(mcp.call_tool("score_review", {
         "contract_id": "C001", "context": ctx["C001"], "localization": loc, "revision": rev}))
-    assert out["mode"] == "cail_gold" and out["score"] == 100.0
+    assert out["mode"] == "cail_gold" and out["score"] == 70.0
 
 
 def test_submit_and_get_result(mcp):
