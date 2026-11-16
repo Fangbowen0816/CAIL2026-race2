@@ -20,3 +20,5 @@ dist/
 
 # 复赛/封测数据（竞赛保密，不入公开仓库）
 resources/datasets/race2_semifinal/
+
+# 混淆集/资源缓存

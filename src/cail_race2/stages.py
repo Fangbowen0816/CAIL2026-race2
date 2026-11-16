@@ -13,6 +13,7 @@ from .repair import apply_arithmetic_repairs
 from .revise import (apply_revisions, build_base, ensure_revisions_for_localized,  # noqa: E402
                      guard_revisions, normalize_revisions, reconcile, revise)
 from .stance_review import review_stance  # noqa: E402
+from .typo_guard import guard_records  # noqa: E402
 
 
 def _merge_stance(state: ContractState, locs: list, client) -> list:
@@ -89,6 +90,7 @@ class LLMReviseStage:
         # original_text 一律回填**输入原文逐字**（平台要求）
         revs = normalize_revisions(state.contract_id, state.paragraphs, revs)
         revs = guard_revisions(state.contract_id, state.paragraphs, revs)
+        revs = guard_records(state.contract_id, state.paragraphs, revs)
         revs = ensure_revisions_for_localized(state.contract_id, state.paragraphs, locs, revs)
         return state.clone(localizations=locs, revisions=revs,
                            final_paragraphs=apply_revisions(state.paragraphs, revs))
