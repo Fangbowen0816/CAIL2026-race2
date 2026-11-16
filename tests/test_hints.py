@@ -20,3 +20,9 @@ def test_hints_include_parties_conflicts_missing():
 
 def test_hints_empty_when_nothing_found():
     assert build_hints({1: "甲乙双方友好协商。"}, [], []) == ""
+
+
+def test_hints_include_essential_checklist_when_findings():
+    facts = extract_facts(PARAS)
+    hints = build_hints(PARAS, facts, verify(PARAS, facts))
+    assert "必备要素" in hints

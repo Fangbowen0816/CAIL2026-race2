@@ -45,6 +45,12 @@ def build_hints(paragraphs: dict[int, str], facts: list[Fact],
         for c in stance[:10]:
             lines.append(f"- p{c.pids[0]}: {c.detail}")
 
+    from .verify import ESSENTIALS, contract_type
+    if lines:   # 仅当已有其它发现时追加（避免干净合同被诱导误报）
+        ctype = contract_type(paragraphs)
+        lines.append(f"本合同类型（推断）：{ctype}；请核查必备要素是否缺失："
+                     + "、".join(ESSENTIALS.get(ctype, ESSENTIALS["通用"])))
+
     if not lines:
         return ""
     return "\n".join(["【预分析（正则/规则抽取，供交叉核对，非最终结论）】"] + lines)[:4000]
