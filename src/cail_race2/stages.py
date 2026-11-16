@@ -62,11 +62,19 @@ class VerifyStage:
 class LLMDetectStage:
     name = "detect"
 
-    def __init__(self, client, reviewer_client=None, reviewer_penalty_only: bool = True):
-        """reviewer_client：S7.5 跨模型审稿的**独立第二模型**（None 则不启用）。"""
+    def __init__(self, client, reviewer_client=None, reviewer_penalty_only: bool = True,
+                 stance_filter: bool = False, stance_symmetry: bool = False):
+        """reviewer_client：S7.5 跨模型审稿的独立第二模型。
+
+        stance_filter / stance_symmetry / S7.5 **默认关闭**：R3 线上实证表明
+        它们使 Loc_stance 20.93→17.85（−3.08），而离线标注代理指标却“变好”
+        → 代理失效，暂不启用（见 docs/召回分析.md 阶段六）。
+        """
         self.client = client
         self.reviewer_client = reviewer_client
         self.reviewer_penalty_only = reviewer_penalty_only
+        self.stance_filter = stance_filter
+        self.stance_symmetry = stance_symmetry
 
     def run(self, state: ContractState) -> ContractState:
         hints = build_hints(state.paragraphs, state.facts, state.conflicts)
@@ -76,8 +84,9 @@ class LLMDetectStage:
             locs = [LocalizationRecord(state.contract_id, [], None)]  # 降级：仅用确定性结果
         locs = merge_deterministic(locs, state.contract_id, state.paragraphs)
         locs = _merge_stance(state, locs, self.client)
-        locs = filter_stance_overreport(state.contract_id, state.paragraphs, locs)
-        locs = _merge_stance_symmetry(state, locs)
+        locs = filter_stance_overreport(state.contract_id, state.paragraphs, locs) \
+            if self.stance_filter else locs
+        locs = _merge_stance_symmetry(state, locs) if self.stance_symmetry else locs
         locs = self._merge_cross_review(state, locs)
         return state.clone(localizations=locs)
 

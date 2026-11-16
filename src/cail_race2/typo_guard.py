@@ -225,13 +225,17 @@ def preserve_whitespace(original: str, revised: str) -> str:
 
 
 def guard_records(contract_id: str, paragraphs: dict, records: list) -> list:
-    """批量后置校验：纯 typo 段→全规则；其他段→仅空白保真。"""
+    """批量后置校验：**仅做空白保真**。
+
+    R3 线上实证：完整规则（混淆集闸门/专名/结构）使 Rev_typo 61.70→59.91
+    （TP −42 而 FP 仅 −17，即回退的编辑里 ~71% 其实是 gold）→ 过激，已降级；
+    `guard_text()` 仍保留完整规则供离线分析/按需启用。
+    """
     out = []
     for r in records:
-        types = set(getattr(r, "error_types", None) or [])
         orig = getattr(r, "original_text", None) or ""
         ans = getattr(r, "correct_answer", None) or ""
-        new = guard_text(orig, ans) if types == {"typo"} else preserve_whitespace(orig, ans)
+        new = preserve_whitespace(orig, ans)
         if new == ans:
             out.append(r)
             continue
