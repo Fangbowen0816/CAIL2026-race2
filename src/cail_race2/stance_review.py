@@ -6,6 +6,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from .contracts import Contract
 from .records import LocalizationRecord
 from .verify import _HEADING_RE, _PLACEHOLDER_RE, _STRONG_MISSING
@@ -46,6 +48,39 @@ _STANCE_SYS = f"""你是资深合同审查专家。请**逐条**判断每个条�
 
 严格只输出 JSON：
 {{"reviews":[{{"pid":N,"verdict":"stance|ok","reason":"简要理由"}}]}}"""
+
+
+# #45 P0-B：已知滥报形态（离线实测 F1 0.421→0.465）
+_FP_MARK = ("无偿", "单方", "无须", "无需", "概不", "全部", "无限期", "同时履行",
+            "不得", "有权", "先", "仅", "只")
+_RE_ACCT = re.compile(r"统一社会信用代码|纳税人识别号|开票信息|开户行|账\s*号")
+_RE_TERM = re.compile(r"(自.*起生效|合同期限|有效期|履行期限|租赁期)")
+
+
+def is_stance_overreport(text: str) -> bool:
+    """确定性的 stance 滥报形态：纯数值段 / 主体账户信息 / 期限生效条款。"""
+    t = text or ""
+    if re.search(r"\d", t) and not any(k in t for k in _FP_MARK):
+        return True
+    if _RE_ACCT.search(t):
+        return True
+    if _RE_TERM.search(t) and not any(k in t for k in ("无偿", "单方", "无限期")):
+        return True
+    return False
+
+
+def filter_stance_overreport(contract_id: str, paragraphs: dict[int, str], locs: list) -> list:
+    """剔除滥报的 stance 定位（仅对 error_type==stance 生效）。"""
+    out = []
+    for r in locs:
+        if r.error_type != "stance" or not r.location:
+            out.append(r)
+            continue
+        keep = [p for s, e in r.location for p in range(s, e + 1)
+                if not is_stance_overreport(paragraphs.get(p, "") or "")]
+        if keep:
+            out.append(LocalizationRecord(r.contract_id, [[min(keep), max(keep)]], "stance"))
+    return out
 
 
 def _reviewable(paragraphs: dict[int, str]) -> list[int]:

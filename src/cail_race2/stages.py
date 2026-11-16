@@ -12,7 +12,7 @@ from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
 from .revise import (apply_revisions, build_base, ensure_revisions_for_localized,  # noqa: E402
                      guard_revisions, normalize_revisions, reconcile, revise)
-from .stance_review import review_stance  # noqa: E402
+from .stance_review import review_stance, filter_stance_overreport  # noqa: E402
 from .typo_guard import guard_records  # noqa: E402
 
 
@@ -61,6 +61,7 @@ class LLMDetectStage:
             locs = [LocalizationRecord(state.contract_id, [], None)]  # 降级：仅用确定性结果
         locs = merge_deterministic(locs, state.contract_id, state.paragraphs)
         locs = _merge_stance(state, locs, self.client)
+        locs = filter_stance_overreport(state.contract_id, state.paragraphs, locs)
         return state.clone(localizations=locs)
 
 
