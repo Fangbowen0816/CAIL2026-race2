@@ -107,6 +107,29 @@ def apply_revisions(paragraphs: dict[int, str],
     return final
 
 
+def ensure_stance_revisions(contract_id: str, paragraphs: dict[int, str],
+                           locs: list[LocalizationRecord],
+                           revs: list[RevisionRecord]) -> list[RevisionRecord]:
+    """平台硬要求：**每个被定位的 stance 段必须有修订记录**（correct_answer 可为 null）。
+
+    对已定位 stance、但无修订记录的 pid，补一条（error_types = 该段定位类型并集）。
+    """
+    loc_types: dict[int, set] = {}
+    for r in locs:
+        if r.error_type:
+            for s, e in (r.location or []):
+                for pid in range(s, e + 1):
+                    loc_types.setdefault(pid, set()).add(r.error_type)
+    stance_pids = {pid for pid, ts in loc_types.items() if "stance" in ts}
+    have = {r.location[0][0] for r in revs
+            if r.location and len(r.location) == 1 and r.location[0][0] == r.location[0][1]}
+    out = list(revs)
+    for pid in sorted(stance_pids - have):
+        out.append(RevisionRecord(contract_id, [[pid, pid]], sorted(loc_types[pid]),
+                                  paragraphs.get(pid, ""), None))
+    return out
+
+
 def build_base(paragraphs: dict[int, str], revs: list[RevisionRecord]) -> dict[int, str]:
     from .fill import _overedited
     base = dict(paragraphs)

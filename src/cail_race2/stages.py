@@ -9,8 +9,8 @@ from .fill import apply_missing_fills
 from .hints import build_hints
 from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
-from .revise import (apply_revisions, build_base, guard_revisions, normalize_revisions,
-                     reconcile, revise)
+from .revise import (apply_revisions, build_base, ensure_stance_revisions,
+                     guard_revisions, normalize_revisions, reconcile, revise)
 from .state import ContractState
 from .verify import verify
 
@@ -71,5 +71,6 @@ class LLMReviseStage:
         # original_text 一律回填**输入原文逐字**（平台要求）
         revs = normalize_revisions(state.contract_id, state.paragraphs, revs)
         revs = guard_revisions(state.contract_id, state.paragraphs, revs)
+        revs = ensure_stance_revisions(state.contract_id, state.paragraphs, locs, revs)
         return state.clone(localizations=locs, revisions=revs,
                            final_paragraphs=apply_revisions(state.paragraphs, revs))
