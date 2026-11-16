@@ -20,7 +20,7 @@ sys.path.insert(0, ROOT)
 from agent.config import load_provider            # noqa: E402
 from cail_race2.contracts import Contract, load_contracts  # noqa: E402
 from cail_race2.llm import LLMClient              # noqa: E402
-from cail_race2.stance_review import review_stance  # noqa: E402
+from cail_race2.stance_review import review_stance, review_stance_cross  # noqa: E402
 
 
 def main() -> int:
@@ -33,6 +33,8 @@ def main() -> int:
     ap.add_argument("--model", default=None)
     ap.add_argument("--workers", type=int, default=12)
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--mode", default="std", choices=["std", "cross"])
+    ap.add_argument("--tag", default="")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
     p = load_provider(a.provider)
@@ -41,11 +43,12 @@ def main() -> int:
     contracts = load_contracts(a.contracts)
 
     def work(c):
-        path = os.path.join(a.out, f"{c.contract_id}.json")
-        if os.path.exists(path) and not a.force:
+        path = os.path.join(a.out, f"{c.contract_id}{a.tag}.json")
+        if os.path.exists(path) and not a.force and not a.tag:
             return c.contract_id, json.load(open(path, encoding="utf-8")), True
         try:
-            recs = review_stance(Contract(c.contract_id, c.context, c.paragraphs), client)
+            fn = review_stance_cross if a.mode == "cross" else review_stance
+            recs = fn(Contract(c.contract_id, c.context, c.paragraphs), client)
             data = [{"pid": r.location[0][0], "type": r.error_type} for r in recs if r.location]
             return c.contract_id, data, False
         except Exception as e:
@@ -57,7 +60,7 @@ def main() -> int:
         for f in as_completed({ex.submit(work, c): c.contract_id for c in contracts}):
             cid, data, cached = f.result()
             if not cached:
-                json.dump(data, open(os.path.join(a.out, f"{cid}.json"), "w", encoding="utf-8"),
+                json.dump(data, open(os.path.join(a.out, f"{cid}{a.tag}.json"), "w", encoding="utf-8"),
                           ensure_ascii=False)
             for d in data:
                 loc.append({"contract_id": cid, "location": [[d["pid"], d["pid"]]],

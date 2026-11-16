@@ -12,7 +12,7 @@ from .records import LocalizationRecord
 from .repair import apply_arithmetic_repairs
 from .revise import (apply_revisions, build_base, ensure_revisions_for_localized,  # noqa: E402
                      guard_revisions, normalize_revisions, reconcile, revise)
-from .stance_review import review_stance, filter_stance_overreport  # noqa: E402
+from .stance_review import review_stance, review_stance_cross, filter_stance_overreport  # noqa: E402
 from .typo_guard import guard_records  # noqa: E402
 
 
@@ -62,8 +62,11 @@ class VerifyStage:
 class LLMDetectStage:
     name = "detect"
 
-    def __init__(self, client):
+    def __init__(self, client, reviewer_client=None, reviewer_penalty_only: bool = True):
+        """reviewer_client：S7.5 跨模型审稿的**独立第二模型**（None 则不启用）。"""
         self.client = client
+        self.reviewer_client = reviewer_client
+        self.reviewer_penalty_only = reviewer_penalty_only
 
     def run(self, state: ContractState) -> ContractState:
         hints = build_hints(state.paragraphs, state.facts, state.conflicts)
@@ -75,7 +78,27 @@ class LLMDetectStage:
         locs = _merge_stance(state, locs, self.client)
         locs = filter_stance_overreport(state.contract_id, state.paragraphs, locs)
         locs = _merge_stance_symmetry(state, locs)
+        locs = self._merge_cross_review(state, locs)
         return state.clone(localizations=locs)
+
+    def _merge_cross_review(self, state: ContractState, locs: list) -> list:
+        """S7.5：跨模型审稿的**罚则类**候选并入（只补漏，不覆盖）。"""
+        if self.reviewer_client is None:
+            return locs
+        try:
+            extra = review_stance_cross(
+                Contract(state.contract_id, state.context, state.paragraphs),
+                self.reviewer_client, penalty_only=self.reviewer_penalty_only)
+        except Exception:
+            return locs
+        covered = {(pid, "stance") for r in locs if r.error_type == "stance"
+                   for s, e in (r.location or []) for pid in range(s, e + 1)}
+        for r in extra:
+            pid = r.location[0][0]
+            if (pid, "stance") not in covered:
+                locs.append(r)
+                covered.add((pid, "stance"))
+        return locs
 
 
 class LLMReviseStage:

@@ -38,3 +38,34 @@ def test_prompt_has_original_criteria():
     # P0-B/P1 曾尝试改 prompt（新增 F–J + 对等性），实测反而更差已回退（见 docs/召回分析.md）
     assert "A." in _CHECKLIST and "E." in _CHECKLIST
     assert "逐条" in _STANCE_SYS
+
+
+class _FakeClient:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def complete_json(self, messages, **kw):
+        return self.payload
+
+
+def test_cross_review_penalty_only_gate():
+    from cail_race2.contracts import Contract
+    from cail_race2.stance_review import review_stance_cross
+    paras = {1: "甲方逾期付款的，应向乙方支付违约金。",          # 罚则类 → 保留
+             2: "本合同自双方签字之日起生效。",                  # 非罚则 → 剔除
+             3: "服务费总金额为人民币70,000.00元。"}             # 数值段 → 剔除
+    c = Contract("C", "", paras)
+    client = _FakeClient({"errors": [{"pid": 1, "reason": "罚则未量化"},
+                                     {"pid": 2, "reason": "x"}, {"pid": 3, "reason": "y"}]})
+    out = review_stance_cross(c, client)
+    assert [r.location[0][0] for r in out] == [1]
+
+
+def test_cross_review_all_kinds_when_disabled():
+    from cail_race2.contracts import Contract
+    from cail_race2.stance_review import review_stance_cross
+    paras = {1: "乙方应无偿承担全部费用。", 2: "本合同自双方签字之日起生效。"}
+    c = Contract("C", "", paras)
+    client = _FakeClient({"errors": [{"pid": 1, "reason": "a"}, {"pid": 2, "reason": "b"}]})
+    out = review_stance_cross(c, client, penalty_only=False)
+    assert sorted(r.location[0][0] for r in out) == [1, 2]

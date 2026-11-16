@@ -50,6 +50,59 @@ _STANCE_SYS = f"""你是资深合同审查专家。请**逐条**判断每个条�
 {{"reviews":[{{"pid":N,"verdict":"stance|ok","reason":"简要理由"}}]}}"""
 
 
+_PENALTY_HINT_RE = re.compile(r"违约金|违约责任|赔偿")
+
+# S7.5 跨模型审稿：对等性专项（独立第二模型）
+_CROSS_SYS = """你是资深合同律师，做**对等性（reciprocity）专项审查**。
+任务：找出**应当被修改的失衡（stance）条款**。只看以下四类：
+1. **罚则不对等**：一方违约有明确罚则（比例/倍数/金额/日费率），而另一方同类违约**无罚则或罚则未量化**（仅写“应支付违约金”而不给标准）；
+2. **兜底转嫁**：把“未列明的/其他”费用、损失、责任**全部**推给一方承担；
+3. **单方权利无约束**：一方可单方解除/中止/暂停/决定/选择，且**无通知、无整改机会、无期限、无客观标准**；
+4. **救济缺失**：一方只承担义务却**无对应对价或救济**（含无过错也要担责）。
+
+**硬要求**：
+- 只报**应被修改的那一段**（失衡方所在段）的 pid；**不要报对等条款**；
+- 理由必须写明：哪一方、哪项权利义务不对等、命中上面第几类；
+- **不要报**：金额/费用/税率等纯数值条款、标准/规范引用条款、期限/生效条款、主体/账户/开票信息条款、
+  对等且已给合理期限或救济的条款、占位符/缺漏条款（那属要素缺失）。
+
+严格只输出 JSON：{"errors":[{"pid":段落号整数,"reason":"简要理由"}]}；无则 {"errors":[]}。"""
+
+
+def cross_messages(contract: Contract) -> list[dict]:
+    lines = [f"p{pid}: {contract.paragraphs[pid]}" for pid in _reviewable(contract.paragraphs)]
+    return [{"role": "system", "content": _CROSS_SYS},
+            {"role": "user", "content": "逐条做对等性审查：\n" + "\n".join(lines)}]
+
+
+def review_stance_cross(contract: Contract, client, penalty_only: bool = True) -> list[LocalizationRecord]:
+    """S7.5：独立第二模型做对等性专项审稿，返回候选 stance 定位（未经合并）。
+
+    penalty_only=True：只保留**罚则类**候选——实测“A ∪ (B∩罚则)” F1 最高（0.465→0.480），
+    其它类别的候选会拖低精度。
+    """
+    obj = client.complete_json(cross_messages(contract), temperature=0.0)
+    items = obj.get("errors") if isinstance(obj, dict) else None
+    out: list[LocalizationRecord] = []
+    seen: set = set()
+    for it in (items or []):
+        if not isinstance(it, dict):
+            continue
+        pid = it.get("pid")
+        if not isinstance(pid, int) or pid not in contract.paragraphs or pid in seen:
+            continue
+        text = contract.paragraphs[pid]
+        if not (text or "").strip() or _HEADING_RE.match(text.strip()):
+            continue
+        if _excluded(text) or is_stance_overreport(text):
+            continue
+        if penalty_only and not _PENALTY_HINT_RE.search(text):
+            continue
+        seen.add(pid)
+        out.append(LocalizationRecord(contract.contract_id, [[pid, pid]], "stance"))
+    return out
+
+
 # #45 P0-B：已知滥报形态（离线实测 F1 0.421→0.465）
 _FP_MARK = ("无偿", "单方", "无须", "无需", "概不", "全部", "无限期", "同时履行",
             "不得", "有权", "先", "仅", "只")

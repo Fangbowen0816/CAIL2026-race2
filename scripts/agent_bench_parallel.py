@@ -39,6 +39,8 @@ def main() -> int:
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--samples", type=int, default=1,
                     help=">1 则每合同多轮取样并按原子取并集（抗非确定性）")
+    ap.add_argument("--reviewer-model", default=None,
+                    help="S7.5 跨模型 stance 审稿：独立第二模型 id（同 provider）")
     a = ap.parse_args()
 
     contracts = load_contracts(a.contracts)
@@ -52,7 +54,11 @@ def main() -> int:
                 d = a.out if a.samples <= 1 else os.path.join(a.out, f"sample{i}")
                 client = LLMClient(base_url=prov.base_url, model=a.model or prov.model,
                                    headers=prov.headers, api_key=prov.api_key, json_mode=False)
-                res = review_contract(c, d, client, use_cache=not a.force)
+                rclient = (LLMClient(base_url=prov.base_url, model=a.reviewer_model,
+                                     headers=prov.headers, api_key=prov.api_key, json_mode=False)
+                           if a.reviewer_model else None)
+                res = review_contract(c, d, client, use_cache=not a.force,
+                                      reviewer_client=rclient)
                 loc_lists.append(res["localization"])
                 rev_lists.append(res["revision"])
             if a.samples > 1:

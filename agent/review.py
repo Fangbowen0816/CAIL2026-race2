@@ -25,7 +25,8 @@ from cail_race2.submission import write_jsonl  # noqa: E402
 
 
 def review_contract(contract: Contract, out_dir: str, client=None,
-                    dry: bool = False, use_cache: bool = False) -> dict:
+                    dry: bool = False, use_cache: bool = False,
+                    reviewer_client=None) -> dict:
     os.makedirs(out_dir, exist_ok=True)
     cache = _cache_path(out_dir, contract.contract_id)
     locs = revs = None
@@ -40,7 +41,8 @@ def review_contract(contract: Contract, out_dir: str, client=None,
         locs, revs = [], []
     elif locs is None:
         state = run_stages(state, [FactsStage(), VerifyStage(),
-                                   LLMDetectStage(client), LLMReviseStage(client)])
+                                   LLMDetectStage(client, reviewer_client),
+                                   LLMReviseStage(client)])
         locs, revs = state.localizations, state.revisions
         _save_cache(cache, locs, revs)
 

@@ -88,13 +88,14 @@ def run(contracts_path: str, out_dir: str, predictor: Predictor,
 
 def run_staged(contracts_path: str, out_dir: str, client,
                force: bool = False, limit: int | None = None,
-               progress=lambda msg: None) -> RunStats:
+               progress=lambda msg: None, reviewer_client=None) -> RunStats:
     """按 Stage 流编排：facts → verify → detect(LLM) → revise(LLM)，逐合同缓存。"""
     contracts: list[Contract] = load_contracts(contracts_path)
     if limit is not None:
         contracts = contracts[:limit]
 
-    stages = [FactsStage(), VerifyStage(), LLMDetectStage(client), LLMReviseStage(client)]
+    stages = [FactsStage(), VerifyStage(), LLMDetectStage(client, reviewer_client),
+              LLMReviseStage(client)]
     all_locs: list[LocalizationRecord] = []
     all_revs: list[RevisionRecord] = []
     stats = RunStats()
