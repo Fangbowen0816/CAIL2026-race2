@@ -25,3 +25,4 @@ resources/datasets/race2_semifinal/
 
 # 合同派生错别字集（验证用，不入公开仓库；公开语料与通用词典入库）
 resources/typo/contract/
+resources/recall/
