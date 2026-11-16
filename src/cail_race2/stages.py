@@ -14,7 +14,6 @@ from .revise import (apply_revisions, build_base, ensure_revisions_for_localized
                      guard_revisions, normalize_revisions, reconcile, revise)
 from .stance_review import review_stance  # noqa: E402
 from .typo_guard import guard_records  # noqa: E402
-from .typo_dict import apply_typo_dict  # noqa: E402
 
 
 def _merge_stance(state: ContractState, locs: list, client) -> list:
@@ -88,7 +87,6 @@ class LLMReviseStage:
         locs, revs = apply_missing_fills(state.contract_id, base, locs, revs)
         locs, revs = apply_party_unification(state.contract_id, base, base_facts, locs, revs)
         locs, revs = reconcile(state.contract_id, locs, revs)
-        locs, revs = apply_typo_dict(state.contract_id, base, locs, revs)
         # original_text 一律回填**输入原文逐字**（平台要求）
         revs = normalize_revisions(state.contract_id, state.paragraphs, revs)
         revs = guard_revisions(state.contract_id, state.paragraphs, revs)

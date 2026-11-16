@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-"""词典驱动的错别字检测/纠正（本地错别字集 → 词典）。
+"""词典驱动的错别字检测/纠正（通用词典，构建自公开资源）。
 
-词典来自模型标注（`resources/typo/lexicon.jsonl`），用于**补 LLM 的漏检**：
-LLM 负责语义级判断，词典负责**高频、字面确定**的错字（反复出现，如 。。→。、必需→必须）。
+词典位置：`resources/typo/general.jsonl`——由公开 CSC 语料（SIGHAN/MCSC/EC-LAW）
+与混淆集（same_pinyin / same_stroke）+ 常用词表生成，**不含任何竞赛合同数据**。
+竞赛合同的错别字集（`resources/typo/contract/`）**只用于验证算法**，不被本模块查询。
 
 用法：
     d = TypoDict.load()
@@ -18,7 +19,7 @@ from functools import lru_cache
 from .typo_guard import confused
 
 _DEFAULT = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))), "resources", "typo", "lexicon.jsonl")
+    os.path.abspath(__file__)))), "resources", "typo", "general.jsonl")
 
 _PARTY = set("甲乙丙丁")
 #: 视为「真错别字」的类别（其余归跨段一致性/改写，不入词典）
@@ -49,17 +50,50 @@ def _prot(rec: str) -> list:
 @lru_cache(maxsize=1)
 def _wordset() -> frozenset:
     """jieba 词表（用于判断「错形」是否为合法词）。"""
+    return frozenset(jieba_FREQ())
+
+
+@lru_cache(maxsize=1)
+def _wordfreq() -> dict:
+    return jieba_FREQ()
+
+
+@lru_cache(maxsize=1)
+def jieba_FREQ() -> dict:
     try:
         import jieba
         jieba.initialize()
-        return frozenset(jieba.dt.FREQ)
+        return dict(jieba.dt.FREQ)
     except Exception:
-        return frozenset()
+        return {}
 
 
 def is_valid_word(s: str) -> bool:
     """s 是否为常见合法词（是 → 其「错形」上下文相关，不能入典）。"""
     return len(s) >= 2 and s in _wordset()
+
+
+def _token_starts(text: str) -> set:
+    """jieba 分词起点集合（命中必须落在词首）。"""
+    try:
+        import jieba
+        starts, pos = set(), 0
+        for tok in jieba.cut(text):
+            starts.add(pos)
+            pos += len(tok)
+        starts.add(pos)
+        return starts
+    except Exception:
+        return set()
+
+
+def _boundary_ok(text: str, i: int, n: int, valid=frozenset()) -> bool:
+    """命中 [i,i+n) 是否不是更长词的内部（前减一/后加一/两侧都不构成词）。"""
+    for s in (text[i - 1:i + n] if i > 0 else "", text[i:i + n + 1],
+              text[i - 1:i + n + 1] if i > 0 else ""):
+        if len(s) > n and s in valid:
+            return False
+    return True
 
 
 def classify_pair(w: str, r: str):
@@ -131,16 +165,25 @@ class TypoDict:
                         entries.append((d["wrong"], d["right"]))
         return cls(entries)
 
-    def find(self, text: str) -> list:
+    def find(self, text: str, boundary: bool = True) -> list:
+        """定位词典命中。boundary=True：命中的**首尾都须对齐分词边界且不在更长词内部**
+        （避免在「共和国」里命中「和国」、「联系人」里命中「的人」）。"""
         out, i, n = [], 0, len(text or "")
+        ws = _wordset() if boundary else frozenset()
+        starts = _token_starts(text) if boundary else None
         while i < n:
             hit = None
-            for w, r in self._by_first.get(text[i], ()):
-                if text.startswith(w, i):
-                    hit = (w, r)
-                    break
-            if hit:
-                out.append({"start": i, "end": i + len(hit[0]), "wrong": hit[0], "right": hit[1]})
+            if not boundary or i in starts:
+                for w, r in self._by_first.get(text[i], ()):
+                    if text.startswith(w, i):
+                        hit = (w, r)
+                        break
+            if hit and (not boundary or _boundary_ok(text, i, len(hit[0]), ws)):
+                end = i + len(hit[0])
+                if boundary and end not in starts:
+                    i += 1
+                    continue
+                out.append({"start": i, "end": end, "wrong": hit[0], "right": hit[1]})
                 i += len(hit[0])
             else:
                 i += 1
@@ -164,6 +207,18 @@ class TypoDict:
             for h in self.find(paragraphs[pid] or ""):
                 out.append({"pid": pid, "wrong": h["wrong"], "right": h["right"]})
         return out
+
+    def candidates(self, paragraphs: dict, limit: int = 12, min_right_freq: int = 3000) -> list:
+        """供 LLM 参考的**候选**（按正形词频降序，只留较高频正形）。"""
+        freq = _wordfreq()
+        out = []
+        for pid in sorted(paragraphs):
+            for h in self.find(paragraphs[pid] or ""):
+                f = freq.get(h["right"], 0)
+                if f >= min_right_freq:
+                    out.append({"pid": pid, "wrong": h["wrong"], "right": h["right"], "freq": f})
+        out.sort(key=lambda x: (-x["freq"], x["pid"]))
+        return out[:limit]
 
 
 def apply_typo_dict(contract_id: str, paragraphs: dict, locs: list, revs: list,

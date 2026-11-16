@@ -51,6 +51,9 @@ def build_hints(paragraphs: dict[int, str], facts: list[Fact],
         lines.append(f"本合同类型（推断）：{ctype}；请核查必备要素是否缺失："
                      + "、".join(ESSENTIALS.get(ctype, ESSENTIALS["通用"])))
 
+    # 注：通用错别字词典（resources/typo/general.jsonl）实测精度仅 ~0.12（多为函数字碎片），
+    #     故**不注入提示**；见 docs/typo优化.md。
+
     if not lines:
         return ""
     return "\n".join(["【预分析（正则/规则抽取，供交叉核对，非最终结论）】"] + lines)[:4000]

@@ -23,5 +23,5 @@ resources/datasets/race2_semifinal/
 
 # 混淆集/资源缓存
 
-# 错别字集/标注（由复赛合同派生，不入公开仓库）
-resources/typo/
+# 合同派生错别字集（验证用，不入公开仓库；公开语料与通用词典入库）
+resources/typo/contract/
