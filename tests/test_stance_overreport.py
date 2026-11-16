@@ -64,7 +64,8 @@ def test_cross_review_penalty_only_gate():
 def test_cross_review_all_kinds_when_disabled():
     from cail_race2.contracts import Contract
     from cail_race2.stance_review import review_stance_cross
-    paras = {1: "乙方应无偿承担全部费用。", 2: "本合同自双方签字之日起生效。"}
+    # 取非罚则、也非滥报形态的条款（避免被 is_stance_overreport 提前剔除）
+    paras = {1: "乙方应无偿承担全部费用。", 2: "乙方应妥善保管甲方交付的全部设备。"}
     c = Contract("C", "", paras)
     client = _FakeClient({"errors": [{"pid": 1, "reason": "a"}, {"pid": 2, "reason": "b"}]})
     out = review_stance_cross(c, client, penalty_only=False)
