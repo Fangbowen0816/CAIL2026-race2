@@ -121,3 +121,22 @@ def test_sentence_rewrite_table_untouched():
     over = RevisionRecord("C1", [[1, 1]], ["missing_element"], orig[1],
                           orig[1] + "，并提交进度计划、验收报告、质量保证书及全部附件材料。")
     assert build_base(orig, [over])[1] == orig[1]
+
+
+def test_ensure_stance_revisions_adds_missing_record():
+    # 平台硬要求：定位的 stance 段必须有修订记录
+    from cail_race2.revise import ensure_stance_revisions
+    paras = {6: "需方可在验收合格后无限期推迟付款，且不承担迟延付款责任。"}
+    locs = [LocalizationRecord("C1", [[6, 6]], "stance")]
+    out = ensure_stance_revisions("C1", paras, locs, [])
+    recs = [r for r in out if r.location and r.location[0][0] == 6]
+    assert recs and recs[0].error_types == ["stance"] and recs[0].original_text == paras[6]
+
+
+def test_ensure_stance_revisions_keeps_existing():
+    from cail_race2.revise import ensure_stance_revisions
+    paras = {6: "x"}
+    locs = [LocalizationRecord("C1", [[6, 6]], "stance")]
+    revs = [RevisionRecord("C1", [[6, 6]], ["stance"], "x", "y")]
+    out = ensure_stance_revisions("C1", paras, locs, revs)
+    assert len([r for r in out if r.location]) == 1
